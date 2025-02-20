@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, flash, redirect, url_for
+from flask import Flask, render_template, request, jsonify, flash, redirect, url_for, session, send_file
 from werkzeug.utils import secure_filename
 import yaml
 import os
@@ -11,8 +11,11 @@ from sqlalchemy.orm import sessionmaker
 from models import init_db, Config, TableConfig
 import psycopg2
 from sshtunnel import SSHTunnelForwarder
+from translations import TRANSLATIONS
+from flask_bootstrap import Bootstrap5
 
 app = Flask(__name__)
+bootstrap = Bootstrap5(app)
 app.secret_key = os.urandom(24)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
@@ -36,6 +39,25 @@ Session = sessionmaker(bind=engine)
 
 # 存储复制任务状态
 copy_tasks = {}
+
+def get_translation(key, lang=None):
+    """获取翻译文本"""
+    if lang is None:
+        lang = session.get('language', 'zh')
+    return TRANSLATIONS.get(lang, TRANSLATIONS['en']).get(key, key)
+
+@app.before_request
+def before_request():
+    """请求预处理：设置默认语言"""
+    if 'language' not in session:
+        session['language'] = request.accept_languages.best_match(['zh', 'en', 'ja']) or 'en'
+
+@app.route('/set_language/<lang>')
+def set_language(lang):
+    """设置语言"""
+    if lang in TRANSLATIONS:
+        session['language'] = lang
+    return redirect(request.referrer or url_for('index'))
 
 def load_config():
     """加载默认配置"""
@@ -107,7 +129,10 @@ def run_copy_task(config_data, task_id):
 def index():
     """主页"""
     config = load_config()
-    return render_template('index.html', config=config)
+    return render_template('index.html', 
+                         config=config,
+                         translations=TRANSLATIONS[session.get('language', 'zh')],
+                         current_lang=session.get('language', 'zh'))
 
 @app.route('/save_config', methods=['POST'])
 def save_config():
@@ -152,16 +177,22 @@ def test_ssh():
             ssh_password=ssh_config.get('password'),
             remote_bind_address=('localhost', 22)
         ) as tunnel:
-            return jsonify({'status': 'success', 'message': 'SSH连接成功'})
+            return jsonify({
+                'status': 'success',
+                'message': get_translation('connection_success')
+            })
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return jsonify({
+            'status': 'error',
+            'message': get_translation('connection_failed').format(str(e))
+        })
 
 @app.route('/test_db_connection', methods=['POST'])
 def test_db_connection():
     """测试数据库连接"""
     try:
         data = request.get_json()
-        db_type = data['type']  # source 或 target
+        db_type = data['type']
         db_config = data['config']
         
         # 连接数据库
@@ -178,9 +209,15 @@ def test_db_connection():
             cursor.execute('SELECT 1')
         
         conn.close()
-        return jsonify({'status': 'success', 'message': '数据库连接成功'})
+        return jsonify({
+            'status': 'success',
+            'message': get_translation('connection_success')
+        })
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return jsonify({
+            'status': 'error',
+            'message': get_translation('connection_failed').format(str(e))
+        })
 
 @app.route('/start_copy', methods=['POST'])
 def start_copy():
@@ -270,6 +307,66 @@ def load_config_by_id(config_id):
                 'config': config.to_dict()
             })
         return jsonify({'status': 'error', 'message': '配置不存在'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    finally:
+        session.close()
+
+@app.route('/get_log')
+def get_log():
+    try:
+        with open('db_copy.log', 'r', encoding='utf-8') as f:
+            log_content = f.read()
+        return log_content
+    except FileNotFoundError:
+        return "暂无日志记录"
+
+@app.route('/clear_log')
+def clear_log():
+    """清除日志"""
+    try:
+        open('db_copy.log', 'w').close()
+        return jsonify({'status': 'success', 'message': '日志已清除'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/download_log')
+def download_log():
+    """下载日志文件"""
+    try:
+        return send_file('db_copy.log',
+                        mimetype='text/plain',
+                        as_attachment=True,
+                        download_name='db_copy.log')
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/list_tasks')
+def list_tasks():
+    """获取所有任务状态"""
+    return jsonify({
+        'status': 'success',
+        'tasks': copy_tasks
+    })
+
+@app.route('/save_table_config', methods=['POST'])
+def save_table_config():
+    """保存表配置"""
+    try:
+        data = request.get_json()
+        session = Session()
+        
+        # 获取当前配置
+        config = session.query(Config).first()
+        if not config:
+            config = Config(name='default')
+            session.add(config)
+        
+        # 更新表配置
+        config.tables = [TableConfig(**table) for table in data['tables']]
+        session.commit()
+        
+        return jsonify({'status': 'success', 'message': '表配置已保存'})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
     finally:
