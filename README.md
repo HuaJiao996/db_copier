@@ -69,6 +69,48 @@ http://localhost:5000
    - 支持配置要复制的列
    - 支持配置数据脱敏规则
 
+配置示例：
+```yaml
+ssh:
+  host: remote.example.com
+  port: 22
+  username: your_username
+  # 使用密钥认证（推荐）
+  private_key_path: ~/.ssh/id_rsa
+  # 或使用密码认证（不推荐）
+  # password: your_password
+
+source_db:
+  host: localhost  # 通过SSH隧道访问的数据库主机
+  port: 5432
+  database: source_db_name
+  username: db_user
+  password: db_password
+
+target_db:
+  host: localhost
+  port: 5432
+  database: target_db_name
+  username: db_user
+  password: db_password
+
+# 要复制的表配置
+tables:
+  - name: users
+    # 如果为空则复制所有列
+    columns: []
+    # 脱敏规则
+    mask_rules:
+      - column: email
+        method: partial  # 可选: partial, hash, random
+      - column: phone
+        method: partial
+  - name: orders
+    columns: [id, order_number, created_at, status]
+    mask_rules:
+      - column: order_number
+        method: hash
+
 ## 脱敏方法说明
 
 1. `partial`: 保留首尾字符，中间用星号代替
