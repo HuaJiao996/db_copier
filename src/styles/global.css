@@ -1,0 +1,26 @@
+:root {
+  --app-max-width: 1200px;
+  --app-padding: 20px;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--el-font-family);
+}
+
+.el-form-item.is-error .el-input__wrapper {
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
+}
+
+.el-table {
+  --el-table-border-color: var(--el-border-color-lighter);
+}
+
+@media screen and (max-width: 768px) {
+  .el-message {
+    width: 90%;
+    min-width: auto;
+  }
+} 

@@ -1,0 +1,39 @@
+{
+  "source_ssh": null,
+  "target_ssh": null,
+  "source_db": {
+    "host": "ep-still-surf-a5orpgon-pooler.us-east-2.aws.neon.tech",
+    "port": 5432,
+    "database": "test",
+    "username": "test_owner",
+    "password": "WawF3zIyirS5",
+    "ssl_mode": "require"
+  },
+  "target_db": {
+    "host": "ep-old-glade-a5pkvgo5-pooler.us-east-2.aws.neon.tech",
+    "port": 5432,
+    "database": "test2",
+    "username": "test2_owner",
+    "password": "npg_B8WMmE5FQsKh",
+    "ssl_mode": "require"
+  },
+  "tables": [
+    {
+      "name": "event",
+      "columns": [
+        "id",
+        "trigger_id",
+        "rule_id",
+        "payload",
+        "created_at"
+      ],
+      "mask_rules": [
+        {
+          "column": "payload",
+          "rule_type": "hash",
+          "pattern": ""
+        }
+      ]
+    }
+  ]
+}
