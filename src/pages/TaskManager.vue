@@ -148,7 +148,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
-import { ElMessage } from 'element-plus';
 import { Download, Refresh, Search } from '@element-plus/icons-vue';
 import type { TaskStatus } from '../types';
 import { useRoute } from 'vue-router';

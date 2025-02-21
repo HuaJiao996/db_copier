@@ -6,12 +6,9 @@ import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
 import {
   Monitor,
   Setting,
-  Timer,
-  Connection,
 } from '@element-plus/icons-vue';
 
 const memoryUsage = ref<number>(0);
-const dbConnected = ref<boolean>(false);
 let memoryUpdateInterval: number | null = null;
 
 const updateMemoryUsage = async () => {

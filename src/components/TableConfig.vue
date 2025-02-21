@@ -71,8 +71,8 @@
               style="width: 100%"
               size="small"
               border
-              :row-key="(row: any) => row.name"
-              @selection-change="(selection) => handleColumnSelectionChange(row.name, selection)"
+              :row-key="(row: TableSelection) => row.name"
+              @selection-change="(selection: TableSelection[]) => handleColumnSelectionChange(row.name, selection)"
             >
               <el-table-column
                 type="selection"
@@ -91,7 +91,7 @@
                     <el-select
                       v-model="column.maskRule.rule_type"
                       placeholder="选择规则"
-                      @change="(val) => handleMaskRuleChange(row.name, column.name, val)"
+                      @change="(ruleType: string) => handleMaskRuleChange(row.name, column.name, ruleType)"
                       style="width: 120px"
                       size="small"
                     >
@@ -105,7 +105,7 @@
                       v-if="column.maskRule?.rule_type && column.maskRule.rule_type !== 'hash'"
                       v-model="column.maskRule.pattern"
                       placeholder="请输入替换值或模式"
-                      @change="() => updateMaskRules(row.name)"
+                      @change="() => updateMaskRules()"
                       style="width: 200px"
                       size="small"
                     />
@@ -168,7 +168,7 @@
 import { ref, watch } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessage } from 'element-plus';
-import { Plus, Refresh, Loading, Check } from '@element-plus/icons-vue';
+import { Refresh, Loading, Check } from '@element-plus/icons-vue';
 import type { Config } from '../types';
 
 const props = defineProps<{
@@ -190,9 +190,9 @@ const tableColumns = ref<{ [key: string]: string[] }>({});
 const maskRules = ref<{ [key: string]: any[] }>({});
 const tableOptions = ref<{ [key: string]: { structureOnly: boolean; ignoreForeignKeys: boolean } }>({});
 
-interface TableColumn {
+interface TableSelection {
   name: string;
-  selected: boolean;
+  selected?: boolean;
   maskRule?: {
     column: string;
     rule_type: string;
@@ -202,11 +202,6 @@ interface TableColumn {
 
 interface TableRow {
   name: string;
-}
-
-interface TableSelection {
-  name: string;
-  selected?: boolean;
 }
 
 const loadTables = async () => {
@@ -319,7 +314,6 @@ const handleTableSelectionChange = (selection: TableRow[]) => {
 };
 
 const handleColumnSelectionChange = (tableName: string, selection: TableSelection[]) => {
-  console.log('列选择变化:', tableName, selection);
   selectedTableColumns.value[tableName] = selection.map(item => item.name);
 };
 
@@ -343,32 +337,24 @@ const handleTableSelect = async (selection: TableRow[], row: TableRow) => {
 };
 
 const handleMaskRuleChange = (tableName: string, columnName: string, ruleType: string) => {
-  if (!maskRules.value[tableName]) {
-    maskRules.value[tableName] = [];
-  }
-
-  const existingRuleIndex = maskRules.value[tableName].findIndex(rule => rule.column === columnName);
+  const rules = maskRules.value[tableName] || [];
+  const existingRule = rules.find(rule => rule.column === columnName);
   
-  if (!ruleType && existingRuleIndex !== -1) {
-    // 如果选择"无"，则删除规则
-    maskRules.value[tableName].splice(existingRuleIndex, 1);
-  } else if (ruleType) {
-    // 添加或更新规则
-    const rule = {
+  if (existingRule) {
+    existingRule.rule_type = ruleType;
+  } else {
+    rules.push({
       column: columnName,
       rule_type: ruleType,
       pattern: ''
-    };
-    
-    if (existingRuleIndex !== -1) {
-      maskRules.value[tableName][existingRuleIndex] = rule;
-    } else {
-      maskRules.value[tableName].push(rule);
-    }
+    });
   }
+  
+  maskRules.value[tableName] = rules;
+  updateTableConfig();
 };
 
-const updateMaskRules = (tableName: string) => {
+const updateMaskRules = () => {
   const selectedTablesConfig = selectedTables.value.map(name => ({
     name,
     columns: selectedTableColumns.value[name] || [],

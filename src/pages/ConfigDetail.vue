@@ -72,10 +72,10 @@ import { ref, onMounted, computed } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { Config, TableConfig as TableConfigType } from '../types';
+import type { Config } from '../types';
 import DatabaseConfig from '../components/DatabaseConfig.vue';
 import TableConfig from '../components/TableConfig.vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 
 const props = defineProps<{
   isCreating: boolean;
@@ -83,7 +83,6 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
-const route = useRoute();
 const formRef = ref<FormInstance>();
 const activeTab = ref('connection');
 const loading = ref(false);
@@ -202,7 +201,7 @@ const startTask = async () => {
 
   try {
     loading.value = true;
-    const taskId = await invoke<string>('start_copy', { config: currentConfig.value });
+    await invoke<string>('start_copy', { config: currentConfig.value });
     ElMessage.success({
       message: '任务创建成功',
       duration: 2000

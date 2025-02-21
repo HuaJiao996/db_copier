@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { watch } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Setting, Plus } from '@element-plus/icons-vue';
-import type { Config } from '../types';
 
 const props = defineProps<{
   loading: boolean;
@@ -23,7 +22,7 @@ const handleSelect = (index: string) => {
 };
 
 // 监听 currentConfig 的变化
-watch(() => props.currentConfig, (newVal) => {
+watch(() => props.currentConfig, (newVal: string) => {
   console.log('当前选中配置:', newVal);
 });
 

@@ -26,8 +26,8 @@
             </el-radio-group>
           </el-form-item>
           
-          <el-form-item v-if="authType === 'key'" prop="ssh.private_key_path" label="密钥文件">
-            <el-input v-model="config.private_key_path">
+          <el-form-item v-if="authType === 'key'" prop="ssh.private_key" label="密钥文件">
+            <el-input v-model="config.private_key">
               <template #append>
                 <el-button @click="selectKeyFile">选择文件</el-button>
               </template>
@@ -45,7 +45,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { open } from '@tauri-apps/api/dialog'
+import { open } from '@tauri-apps/plugin-dialog'
 import type { SSHConfig } from '../types'
 
 const props = defineProps<{
@@ -58,12 +58,13 @@ const emit = defineEmits<{
 }>()
 
 const useSSH = ref(!!props.modelValue)
-const authType = ref(props.modelValue?.private_key_path ? 'key' : 'password')
+const authType = ref(props.modelValue?.private_key ? 'key' : 'password')
 const config = ref<SSHConfig>(props.modelValue || {
   host: '',
   port: 22,
   username: '',
-  private_key_path: '',
+  auth_type: 'password',
+  private_key: '',
   password: ''
 })
 
@@ -87,7 +88,7 @@ const selectKeyFile = async () => {
   })
   
   if (selected && typeof selected === 'string') {
-    config.value.private_key_path = selected
+    config.value.private_key = selected
   }
 }
 </script> 
