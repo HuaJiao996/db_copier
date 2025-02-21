@@ -19,7 +19,6 @@ use std::pin::Pin;
 use std::future::Future;
 use tokio::time::{sleep, Duration};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub enum DbError {

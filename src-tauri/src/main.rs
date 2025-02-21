@@ -14,6 +14,7 @@ use commands::{
     test_connection, start_copy, get_task_status, get_table_columns,
     get_tables, save_config, load_config, list_configs, delete_config,
     get_table_info, sync_table_structure, get_memory_usage, migrate_configs,
+    import_config, get_config_summary, get_all_tasks,
     TaskStore
 };
 use std::time::Instant;
@@ -39,7 +40,9 @@ fn main() {
 
     // 初始化存储
     let storage = rt.block_on(async {
-        Storage::new().await.expect("Failed to initialize storage")
+        let storage = Storage::new().await.expect("Failed to initialize storage");
+        storage.init_db().await.expect("Failed to initialize database tables");
+        storage
     });
     let storage = Arc::new(storage);
 
@@ -81,6 +84,9 @@ fn main() {
             sync_table_structure,
             get_memory_usage,
             migrate_configs,
+            import_config,
+            get_config_summary,
+            get_all_tasks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

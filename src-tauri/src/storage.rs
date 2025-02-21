@@ -1,4 +1,4 @@
-use crate::models::Config;
+use crate::models::{Config, TaskStatus};
 use rusqlite::{params};
 use std::path::PathBuf;
 use tokio_rusqlite::Connection as AsyncConnection;
@@ -126,5 +126,77 @@ impl Storage {
         }
         
         Ok(rows > 0)
+    }
+
+    // 保存任务状态
+    pub async fn save_task(&self, task: &TaskStatus) -> Result<(), tokio_rusqlite::Error> {
+        let task_json = serde_json::to_string(task)
+            .map_err(|e| tokio_rusqlite::Error::Rusqlite(rusqlite::Error::InvalidParameterName(
+                format!("序列化任务失败: {}", e)
+            )))?;
+
+        let task_id = task.id.clone();
+        self.conn.call(move |conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO tasks (id, content) VALUES (?1, ?2)",
+                params![task_id, task_json],
+            )?;
+            Ok(())
+        }).await?;
+
+        Ok(())
+    }
+
+    // 获取所有任务
+    pub async fn get_all_tasks(&self) -> Result<Vec<TaskStatus>, tokio_rusqlite::Error> {
+        self.conn.call(|conn| {
+            let mut stmt = conn.prepare("SELECT content FROM tasks ORDER BY id DESC")?;
+            let tasks = stmt.query_map([], |row| {
+                let content: String = row.get(0)?;
+                serde_json::from_str(&content)
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(
+                        format!("解析任务失败: {}", e)
+                    ))
+            })?
+            .collect::<Result<Vec<TaskStatus>, _>>()?;
+            Ok(tasks)
+        }).await
+    }
+
+    // 获取单个任务
+    pub async fn get_task(&self, id: &str) -> Result<Option<TaskStatus>, tokio_rusqlite::Error> {
+        let id_clone = id.to_string();
+        self.conn.call(move |conn| {
+            match conn.query_row(
+                "SELECT content FROM tasks WHERE id = ?1",
+                params![id_clone],
+                |row| {
+                    let content: String = row.get(0)?;
+                    serde_json::from_str(&content)
+                        .map_err(|e| rusqlite::Error::InvalidParameterName(
+                            format!("解析任务失败: {}", e)
+                        ))
+                },
+            ) {
+                Ok(task) => Ok(Some(task)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(tokio_rusqlite::Error::Rusqlite(e))
+            }
+        }).await
+    }
+
+    // 初始化数据库时添加任务表
+    pub async fn init_db(&self) -> Result<(), tokio_rusqlite::Error> {
+        self.conn.call(|conn| {
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS tasks (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL
+                )",
+                [],
+            )?;
+            Ok(())
+        }).await?;
+        Ok(())
     }
 } 
