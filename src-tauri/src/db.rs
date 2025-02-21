@@ -2,25 +2,24 @@ use crate::models::{Config, DatabaseConfig, SSHConfig, TableConfig, MaskRule, Ma
 use ssh2::Session;
 use std::net::TcpStream;
 use tokio_postgres::{Client, Config as PgConfig};
-use tokio_postgres::Error as PgError;
+use tokio_postgres::types::ToSql;
 use std::error::Error;
+use std::sync::Arc;
+use postgres_native_tls;
+use log::{info, error};
+use std::collections::HashMap;
+use crate::monitor::MemoryMonitor;
 use std::fmt;
 use sha2::{Sha256, Digest};
 use serde::{Serialize, Deserialize};
 use futures::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
-use std::sync::Arc;
-use std::collections::HashMap;
 use tokio::sync::RwLock;
 use std::pin::Pin;
 use std::future::Future;
 use tokio::time::{sleep, Duration};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::monitor::MemoryMonitor;
-use tokio_postgres::types::ToSql;
-use native_tls;
-use postgres_native_tls;
-use log::{info, error};
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub enum DbError {
