@@ -2,6 +2,7 @@ use crate::models::{Config, DatabaseConfig, SSHConfig, TableConfig, MaskRule, Ma
 use ssh2::Session;
 use std::net::TcpStream;
 use tokio_postgres::{Client, Config as PgConfig};
+use tokio_postgres::Error as PgError;
 use std::error::Error;
 use std::fmt;
 use sha2::{Sha256, Digest};
@@ -337,6 +338,44 @@ impl DbCopier {
         Err(last_error.unwrap())
     }
 
+    // 添加内存监控使用
+    fn update_memory_usage(&self, delta: isize) {
+        self.memory_monitor.update_usage(delta);
+    }
+
+    async fn execute_batch_insert(
+        &self,
+        table: &TableConfig,
+        batch_values: &mut Vec<String>,
+        batch_params: &mut Vec<String>,
+        memory_counter: &AtomicUsize,
+    ) -> Result<(), DbError> {
+        if batch_values.is_empty() {
+            return Ok(());
+        }
+
+        let total_size = batch_values.iter().map(|s| s.len()).sum::<usize>();
+        self.update_memory_usage(-(total_size as isize));
+        memory_counter.fetch_sub(total_size, Ordering::Relaxed);
+
+        let insert_sql = format!(
+            "INSERT INTO {} ({}) VALUES {}",
+            table.name,
+            table.columns.join(", "),
+            batch_values.join(", ")
+        );
+
+        self.target_client
+            .execute(&insert_sql, &batch_params.iter().map(|s| s as _).collect::<Vec<_>>())
+            .await
+            .map_err(|e| DbError::Query(e.to_string()))?;
+
+        batch_values.clear();
+        batch_params.clear();
+
+        Ok(())
+    }
+
     async fn copy_table_data_stream(&self, table: &TableConfig) -> Result<(), DbError> {
         const BATCH_SIZE: usize = 1000;
         let mut values: Vec<String> = Vec::new();
@@ -369,7 +408,7 @@ impl DbCopier {
                 value_count += 1;
                 let value: String = row.get(column.as_str());
                 // 更新内存使用统计
-                self.memory_monitor.update_usage(value.len() as isize);
+                self.update_memory_usage(value.len() as isize);
                 values.push(value);
                 row_placeholders.push(format!("${}", value_count));
             }
@@ -383,7 +422,7 @@ impl DbCopier {
                 
                 // 更新内存使用统计（减少）
                 let freed_memory: isize = -(values.iter().map(|s| s.len() as isize).sum::<isize>());
-                self.memory_monitor.update_usage(freed_memory);
+                self.update_memory_usage(freed_memory);
                 
                 values.clear();
                 batch_params.clear();
@@ -400,38 +439,8 @@ impl DbCopier {
             
             // 更新内存使用统计（减少）
             let freed_memory: isize = -(values.iter().map(|s| s.len() as isize).sum::<isize>());
-            self.memory_monitor.update_usage(freed_memory);
+            self.update_memory_usage(freed_memory);
         }
-
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    async fn execute_batch_insert(
-        &self,
-        table: &TableConfig,
-        batch_values: &mut Vec<String>,
-        batch_params: &mut Vec<String>,
-        memory_counter: &AtomicUsize,
-    ) -> Result<(), DbError> {
-        let insert_sql = format!(
-            "INSERT INTO {} ({}) VALUES {}",
-            table.name,
-            table.columns.join(", "),
-            batch_values.join(", ")
-        );
-
-        self.target_client
-            .execute(&insert_sql, &batch_params.iter().map(|s| s as _).collect::<Vec<_>>())
-            .await
-            .map_err(|e| DbError::Query(e.to_string()))?;
-
-        // 更新内存使用统计
-        let freed_memory: usize = batch_params.iter().map(|s| s.len()).sum();
-        memory_counter.fetch_sub(freed_memory, Ordering::Relaxed);
-
-        batch_values.clear();
-        batch_params.clear();
 
         Ok(())
     }
@@ -439,26 +448,53 @@ impl DbCopier {
     pub async fn copy_table(&self, table: &TableConfig) -> Result<(), DbError> {
         // 获取并同步表结构
         let table_info = self.get_table_info(&table.name).await?;
-        self.sync_table_structure(&table_info).await?;
+        self.sync_table_structure(&table_info, table.ignore_foreign_keys).await?;
+
+        // 如果只复制结构，则直接返回
+        if table.structure_only {
+            return Ok(());
+        }
 
         // 使用流式处理复制数据
         let columns = table.columns.join("\", \"");
         let select_sql = format!("SELECT \"{}\" FROM \"{}\"", columns, table.name);
 
-        // 执行查询
-        let source_rows = self.source_client
+        // 执行查询并插入数据
+        let rows = self.source_client
             .query(&select_sql, &[])
             .await
             .map_err(|e| DbError::Query(e.to_string()))?;
 
-        // 构建插入语句
-        let insert_sql = format!(
-            "INSERT INTO \"{}\" (\"{}\")",
-            table.name,
-            columns
-        );
+        if !rows.is_empty() {
+            let insert_sql = format!(
+                "INSERT INTO \"{}\" (\"{}\") VALUES",
+                table.name,
+                columns
+            );
 
-        // ... rest of the copy_table implementation ...
+            // 构建批量插入的值
+            let mut values = Vec::new();
+            let mut params = Vec::new();
+            let mut param_count = 1;
+
+            for row in rows {
+                let mut row_values = Vec::new();
+                for column in &table.columns {
+                    let value: String = row.get(column.as_str());
+                    params.push(value);
+                    row_values.push(format!("${}", param_count));
+                    param_count += 1;
+                }
+                values.push(format!("({})", row_values.join(", ")));
+            }
+
+            // 执行批量插入
+            let full_insert_sql = format!("{} {}", insert_sql, values.join(", "));
+            self.target_client
+                .execute(&full_insert_sql, &params.iter().map(|s| s as &(dyn ToSql + Sync)).collect::<Vec<_>>())
+                .await
+                .map_err(|e| DbError::Query(e.to_string()))?;
+        }
 
         Ok(())
     }
@@ -584,7 +620,7 @@ impl DbCopier {
         Ok(rows.iter().map(|row| row.get(0)).collect())
     }
 
-    pub async fn sync_table_structure(&self, table_info: &TableInfo) -> Result<(), DbError> {
+    pub async fn sync_table_structure(&self, table_info: &TableInfo, ignore_foreign_keys: bool) -> Result<(), DbError> {
         // 删除目标表(如果存在)
         self.target_client
             .execute(
@@ -620,15 +656,20 @@ impl DbCopier {
             .await
             .map_err(|e| DbError::Query(e.to_string()))?;
 
-        // 添加约束
-        for constraint in &table_info.constraints {
-            self.target_client
-                .execute(
-                    &format!("ALTER TABLE \"{}\" ADD {}", table_info.name, constraint),
-                    &[],
-                )
-                .await
-                .map_err(|e| DbError::Query(e.to_string()))?;
+        // 添加约束（如果不忽略外键）
+        if !ignore_foreign_keys {
+            for constraint in &table_info.constraints {
+                // 跳过外键约束
+                if !constraint.contains("FOREIGN KEY") {
+                    self.target_client
+                        .execute(
+                            &format!("ALTER TABLE \"{}\" ADD {}", table_info.name, constraint),
+                            &[],
+                        )
+                        .await
+                        .map_err(|e| DbError::Query(e.to_string()))?;
+                }
+            }
         }
 
         // 添加索引

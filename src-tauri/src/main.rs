@@ -6,16 +6,19 @@ mod db;
 mod commands;
 mod logger;
 mod monitor;
+mod storage;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use commands::{
     test_connection, start_copy, get_task_status, get_table_columns,
     get_tables, save_config, load_config, list_configs, delete_config,
-    get_table_info, sync_table_structure, get_memory_usage, TaskStore
+    get_table_info, sync_table_structure, get_memory_usage, migrate_configs,
+    TaskStore
 };
 use std::time::Instant;
 use monitor::MemoryMonitor;
+use storage::Storage;
 use log::info;
 use tauri::Manager;
 use tokio;
@@ -34,15 +37,23 @@ fn main() {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
 
+    // 初始化存储
+    let storage = rt.block_on(async {
+        Storage::new().await.expect("Failed to initialize storage")
+    });
+    let storage = Arc::new(storage);
+
     // 在运行时中启动监控
     rt.spawn(async move {
         monitor_clone.start_monitoring().await;
     });
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             app.manage(Arc::new(Mutex::new(HashMap::<String, Instant>::new())));
             app.manage(memory_monitor.clone());
+            app.manage(storage);
             
             let window = app.get_webview_window("main").unwrap();
             let start = Instant::now();
@@ -69,6 +80,7 @@ fn main() {
             get_table_info,
             sync_table_structure,
             get_memory_usage,
+            migrate_configs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

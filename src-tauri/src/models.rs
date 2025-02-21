@@ -24,6 +24,8 @@ pub struct TableConfig {
     pub name: String,
     pub columns: Vec<String>,
     pub mask_rules: Vec<MaskRule>,
+    pub structure_only: bool,
+    pub ignore_foreign_keys: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

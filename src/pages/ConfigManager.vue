@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, CaretRight, Document, DocumentCopy } from '@element-plus/icons-vue';
+import { Plus, CaretRight, Document, DocumentCopy, Upload } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import type { Config } from '../types';
 
@@ -10,6 +11,7 @@ const router = useRouter();
 const loading = ref(false);
 const configList = ref<{ name: string }[]>([]);
 const selectedConfigs = ref<{ name: string }[]>([]);
+const migrateLoading = ref(false);
 
 const loadConfigs = async () => {
   try {
@@ -167,6 +169,64 @@ const handleSelectionChange = (selection: { name: string }[]) => {
   selectedConfigs.value = selection;
 };
 
+const importConfig = async () => {
+  try {
+    // 打开文件选择对话框
+    const selected = await open({
+      multiple: true,
+      filters: [{
+        name: 'JSON',
+        extensions: ['json']
+      }]
+    });
+
+    if (!selected) return;
+
+    const files = Array.isArray(selected) ? selected : [selected];
+    
+    migrateLoading.value = true;
+    let success = 0;
+    let failed = 0;
+    const messages = [];
+
+    for (const filePath of files) {
+      try {
+        // 读取并解析JSON文件
+        const config = await invoke<Config>('import_config', { filePath });
+        const fileName = filePath.split(/[/\\]/).pop()?.replace('.json', '') || '';
+        
+        // 保存配置
+        await invoke('save_config', { 
+          name: fileName, 
+          config: { ...config, name: fileName }
+        });
+        
+        success++;
+        messages.push(`成功导入配置: ${fileName}`);
+      } catch (error) {
+        failed++;
+        messages.push(`导入失败 ${filePath}: ${error}`);
+      }
+    }
+
+    // 显示导入结果
+    await ElMessageBox.alert(
+      `导入完成。成功: ${success}, 失败: ${failed}\n${messages.join('\n')}`,
+      {
+        title: '导入结果',
+        confirmButtonText: '确定',
+        callback: () => {
+          loadConfigs();
+        }
+      }
+    );
+  } catch (error) {
+    ElMessage.error('导入失败: ' + error);
+  } finally {
+    migrateLoading.value = false;
+  }
+};
+
 onMounted(() => {
   loadConfigs();
 });
@@ -188,6 +248,14 @@ onMounted(() => {
         >
           <el-icon><CaretRight /></el-icon>
           批量启动
+        </el-button>
+        <el-button 
+          type="warning" 
+          @click="importConfig"
+          :loading="migrateLoading"
+        >
+          <el-icon><Upload /></el-icon>
+          导入配置
         </el-button>
       </el-button-group>
     </div>

@@ -32,8 +32,22 @@
       @expand-change="handleExpandChange"
     >
       <el-table-column type="expand">
-        <template #default="{ row }">
+          <template #default="{ row }">
           <div class="expanded-content">
+            <div class="table-options">
+              <el-checkbox 
+                v-model="tableOptions[row.name].structureOnly"
+                @change="() => handleTableOptionChange(row.name)"
+              >
+                仅复制表结构
+              </el-checkbox>
+              <el-checkbox 
+                v-model="tableOptions[row.name].ignoreForeignKeys"
+                @change="() => handleTableOptionChange(row.name)"
+              >
+                忽略外键关联
+              </el-checkbox>
+            </div>
             <div class="column-header">
               <span>列配置</span>
               <el-button 
@@ -82,12 +96,12 @@
                       size="small"
                     >
                       <el-option label="无" value="" />
-                      <el-option label="哈希" value="hash" />
-                      <el-option label="固定值" value="fixed" />
-                      <el-option label="模式" value="pattern" />
-                    </el-select>
-                    
-                    <el-input
+                <el-option label="哈希" value="hash" />
+                <el-option label="固定值" value="fixed" />
+                <el-option label="模式" value="pattern" />
+              </el-select>
+              
+              <el-input
                       v-if="column.maskRule?.rule_type && column.maskRule.rule_type !== 'hash'"
                       v-model="column.maskRule.pattern"
                       placeholder="请输入替换值或模式"
@@ -107,13 +121,13 @@
               加载列信息...
             </div>
           </div>
-        </template>
-      </el-table-column>
-
+          </template>
+        </el-table-column>
+        
       <el-table-column type="selection" width="55" :reserve-selection="true" />
       
       <el-table-column label="表名" min-width="200">
-        <template #default="{ row }">
+          <template #default="{ row }">
           <div class="table-name-cell">
             <span>{{ row.name }}</span>
             <el-tag size="small" type="info" class="table-tag">
@@ -134,9 +148,9 @@
               </el-tag>
             </div>
           </div>
-        </template>
-      </el-table-column>
-    </el-table>
+          </template>
+        </el-table-column>
+      </el-table>
 
     <div class="action-bar" v-if="selectedTables.length > 0">
       <el-button
@@ -174,14 +188,25 @@ const selectedTables = ref<string[]>([]);
 const selectedTableColumns = ref<{ [key: string]: string[] }>({});
 const tableColumns = ref<{ [key: string]: string[] }>({});
 const maskRules = ref<{ [key: string]: any[] }>({});
+const tableOptions = ref<{ [key: string]: { structureOnly: boolean; ignoreForeignKeys: boolean } }>({});
 
 interface TableColumn {
   name: string;
   selected: boolean;
+  maskRule?: {
+    column: string;
+    rule_type: string;
+    pattern?: string;
+  };
 }
 
 interface TableRow {
   name: string;
+}
+
+interface TableSelection {
+  name: string;
+  selected?: boolean;
 }
 
 const loadTables = async () => {
@@ -234,9 +259,9 @@ const loadTableColumns = async (tableName: string) => {
   try {
     columnLoading.value[tableName] = true;
     console.log('开始加载表列:', tableName);
-    const columns = await invoke<string[]>('get_table_columns', { 
-      config: props.config, 
-      tableName 
+      const columns = await invoke<string[]>('get_table_columns', {
+        config: props.config,
+        tableName
     });
     console.log('获取到表列:', columns);
     tableColumns.value[tableName] = columns;
@@ -270,7 +295,9 @@ const saveTableConfig = () => {
   const selectedTablesConfig = selectedTables.value.map(tableName => ({
     name: tableName,
     columns: selectedTableColumns.value[tableName] || [],
-    mask_rules: maskRules.value[tableName] || []
+    mask_rules: maskRules.value[tableName] || [],
+    structure_only: tableOptions.value[tableName]?.structureOnly || false,
+    ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false
   }));
   emit('update:selectedTables', selectedTablesConfig);
   ElMessage.success('保存配置成功');
@@ -284,25 +311,33 @@ const handleTableSelectionChange = (selection: TableRow[]) => {
   const selectedTablesConfig = selectedTables.value.map(tableName => ({
     name: tableName,
     columns: selectedTableColumns.value[tableName] || [],
-    mask_rules: maskRules.value[tableName] || []
+    mask_rules: maskRules.value[tableName] || [],
+    structure_only: tableOptions.value[tableName]?.structureOnly || false,
+    ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false
   }));
   emit('update:selectedTables', selectedTablesConfig);
 };
 
-const handleColumnSelectionChange = (tableName: string, selection: { name: string }[]) => {
+const handleColumnSelectionChange = (tableName: string, selection: TableSelection[]) => {
   console.log('列选择变化:', tableName, selection);
   selectedTableColumns.value[tableName] = selection.map(item => item.name);
 };
 
 const handleExpandChange = async (row: TableRow, expanded: boolean) => {
-  if (expanded && !tableColumns.value[row.name]) {
-    await loadTableColumns(row.name);
+  if (expanded) {
+    initTableOptions(row.name);
+    if (!tableColumns.value[row.name]) {
+      await loadTableColumns(row.name);
+    }
   }
 };
 
 const handleTableSelect = async (selection: TableRow[], row: TableRow) => {
-  if (selection.includes(row) && !tableColumns.value[row.name]) {
-    await loadTableColumns(row.name);
+  if (selection.includes(row)) {
+    initTableOptions(row.name);
+    if (!tableColumns.value[row.name]) {
+      await loadTableColumns(row.name);
+    }
   }
   handleTableSelectionChange(selection);
 };
@@ -337,13 +372,48 @@ const updateMaskRules = (tableName: string) => {
   const selectedTablesConfig = selectedTables.value.map(name => ({
     name,
     columns: selectedTableColumns.value[name] || [],
-    mask_rules: maskRules.value[name] || []
+    mask_rules: maskRules.value[name] || [],
+    structure_only: tableOptions.value[name]?.structureOnly || false,
+    ignore_foreign_keys: tableOptions.value[name]?.ignoreForeignKeys || false
   }));
   emit('update:selectedTables', selectedTablesConfig);
 };
 
 const getMaskRuleCount = (tableName: string): number => {
   return maskRules.value[tableName]?.length || 0;
+};
+
+// 初始化表选项
+const initTableOptions = (tableName: string) => {
+  if (!tableOptions.value[tableName]) {
+    tableOptions.value[tableName] = {
+      structureOnly: false,
+      ignoreForeignKeys: false
+    };
+  }
+};
+
+// 处理表选项变化
+const handleTableOptionChange = (tableName: string) => {
+  const options = tableOptions.value[tableName];
+  if (options.structureOnly) {
+    // 如果选择只复制结构，清空列选择和掩码规则
+    selectedTableColumns.value[tableName] = [];
+    maskRules.value[tableName] = [];
+  }
+  updateTableConfig();
+};
+
+// 更新表配置
+const updateTableConfig = () => {
+  const selectedTablesConfig = selectedTables.value.map(tableName => ({
+    name: tableName,
+    columns: selectedTableColumns.value[tableName] || [],
+    mask_rules: maskRules.value[tableName] || [],
+    structure_only: tableOptions.value[tableName]?.structureOnly || false,
+    ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false
+  }));
+  emit('update:selectedTables', selectedTablesConfig);
 };
 
 // 监听选中表的变化
@@ -470,5 +540,14 @@ watch(selectedTableColumns, (newColumns) => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.table-options {
+  margin-bottom: 16px;
+  padding: 12px;
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+  display: flex;
+  gap: 24px;
 }
 </style> 

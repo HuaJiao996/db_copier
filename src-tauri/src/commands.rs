@@ -1,6 +1,7 @@
-use crate::models::{Config, TaskStatus, TaskState, Progress};
+use crate::models::{Config, TaskStatus, TaskState, Progress, MaskRule, SSHConfig, DatabaseConfig, TableConfig};
 use crate::db::{DbCopier, TableInfo};
 use crate::monitor::MemoryMonitor;
+use crate::storage::Storage;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use chrono::Local;
@@ -9,6 +10,7 @@ use std::sync::Arc;
 use std::fs;
 use std::path::PathBuf;
 use log::{info, error};
+use serde::Deserialize;
 
 #[derive(Clone)]
 pub struct TaskStore(pub Arc<Mutex<HashMap<String, TaskStatus>>>);
@@ -152,59 +154,47 @@ pub async fn get_tables(config: Config) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub async fn save_config(name: String, config: Config) -> Result<(), String> {
-    let config_dir = PathBuf::from("configs");
-    fs::create_dir_all(&config_dir)
-        .map_err(|e| format!("创建配置目录失败: {}", e))?;
-    
-    let config_path = config_dir.join(format!("{}.json", name));
-    let config_json = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("序列化配置失败: {}", e))?;
-    
-    fs::write(config_path, config_json)
-        .map_err(|e| format!("保存配置失败: {}", e))?;
-    
-    Ok(())
+pub async fn save_config(
+    name: String,
+    config: Config,
+    storage: State<'_, Arc<Storage>>,
+) -> Result<(), String> {
+    storage.save_config(&name, &config)
+        .await
+        .map_err(|e| format!("保存配置失败: {}", e))
 }
 
 #[tauri::command]
-pub async fn load_config(name: String) -> Result<Config, String> {
-    let config_path = PathBuf::from("configs").join(format!("{}.json", name));
-    let config_json = fs::read_to_string(config_path)
-        .map_err(|e| format!("读取配置失败: {}", e))?;
-    
-    serde_json::from_str(&config_json)
-        .map_err(|e| format!("解析配置失败: {}", e))
-}
-
-#[tauri::command]
-pub async fn list_configs() -> Result<Vec<String>, String> {
-    let config_dir = PathBuf::from("configs");
-    if !config_dir.exists() {
-        return Ok(Vec::new());
+pub async fn load_config(
+    name: String,
+    storage: State<'_, Arc<Storage>>,
+) -> Result<Config, String> {
+    match storage.load_config(&name).await {
+        Ok(Some(config)) => Ok(config),
+        Ok(None) => Err("配置不存在".to_string()),
+        Err(e) => Err(format!("加载配置失败: {}", e)),
     }
-    
-    let mut configs = Vec::new();
-    for entry in fs::read_dir(config_dir)
-        .map_err(|e| format!("读取配置目录失败: {}", e))? {
-        let entry = entry.map_err(|e| format!("读取配置文件失败: {}", e))?;
-        if let Some(name) = entry.path()
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(String::from) {
-            configs.push(name);
-        }
-    }
-    
-    Ok(configs)
 }
 
 #[tauri::command]
-pub async fn delete_config(name: String) -> Result<(), String> {
-    let config_path = PathBuf::from("configs").join(format!("{}.json", name));
-    fs::remove_file(config_path)
-        .map_err(|e| format!("删除配置失败: {}", e))?;
-    Ok(())
+pub async fn list_configs(
+    storage: State<'_, Arc<Storage>>,
+) -> Result<Vec<String>, String> {
+    storage.list_configs()
+        .await
+        .map_err(|e| format!("获取配置列表失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn delete_config(
+    name: String,
+    storage: State<'_, Arc<Storage>>,
+) -> Result<(), String> {
+    match storage.delete_config(&name).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err("配置不存在".to_string()),
+        Err(e) => Err(format!("删除配置失败: {}", e)),
+    }
 }
 
 #[tauri::command]
@@ -232,7 +222,7 @@ pub async fn sync_table_structure(
         .await
         .map_err(|e| e.to_string())?;
     
-    copier.sync_table_structure(&table_info)
+    copier.sync_table_structure(&table_info, false)
         .await
         .map_err(|e| e.to_string())
 }
@@ -240,4 +230,169 @@ pub async fn sync_table_structure(
 #[tauri::command]
 pub fn get_memory_usage(memory_monitor: tauri::State<'_, Arc<MemoryMonitor>>) -> Result<usize, String> {
     Ok(memory_monitor.get_usage())
+}
+
+#[tauri::command]
+pub async fn migrate_configs(
+    storage: State<'_, Arc<Storage>>,
+) -> Result<String, String> {
+    // 检查旧的配置目录
+    let config_dir = PathBuf::from("configs");
+    if !config_dir.exists() {
+        return Ok("无需迁移：旧配置目录不存在".to_string());
+    }
+
+    let mut migrated = 0;
+    let mut failed = 0;
+    let mut messages = Vec::new();
+
+    // 读取所有JSON文件
+    for entry in fs::read_dir(&config_dir).map_err(|e| format!("读取配置目录失败: {}", e))? {
+        let entry = entry.map_err(|e| format!("读取配置文件失败: {}", e))?;
+        let path = entry.path();
+        
+        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            let file_name = path.file_stem()
+                .and_then(|s| s.to_str())
+                .ok_or_else(|| "无效的文件名".to_string())?;
+
+            match migrate_single_config(&path, file_name, &storage).await {
+                Ok(_) => {
+                    migrated += 1;
+                    messages.push(format!("成功迁移配置: {}", file_name));
+                }
+                Err(e) => {
+                    failed += 1;
+                    messages.push(format!("迁移配置失败 {}: {}", file_name, e));
+                }
+            }
+        }
+    }
+
+    // 如果所有配置都迁移成功，重命名旧目录
+    if failed == 0 && migrated > 0 {
+        let backup_dir = PathBuf::from("configs_backup");
+        if let Err(e) = fs::rename(&config_dir, &backup_dir) {
+            messages.push(format!("警告：无法备份旧配置目录: {}", e));
+        } else {
+            messages.push("已将旧配置目录重命名为 'configs_backup'".to_string());
+        }
+    }
+
+    let summary = format!(
+        "迁移完成。成功: {}, 失败: {}\n{}",
+        migrated,
+        failed,
+        messages.join("\n")
+    );
+
+    Ok(summary)
+}
+
+async fn migrate_single_config(
+    path: &PathBuf,
+    name: &str,
+    storage: &Storage,
+) -> Result<(), String> {
+    // 读取JSON文件
+    let config_json = fs::read_to_string(path)
+        .map_err(|e| format!("读取配置文件失败: {}", e))?;
+
+    // 尝试解析为旧格式
+    #[derive(Debug, Deserialize)]
+    struct OldTableConfig {
+        name: String,
+        columns: Vec<String>,
+        mask_rules: Vec<MaskRule>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct OldConfig {
+        source_ssh: Option<SSHConfig>,
+        target_ssh: Option<SSHConfig>,
+        source_db: DatabaseConfig,
+        target_db: DatabaseConfig,
+        tables: Vec<OldTableConfig>,
+    }
+
+    // 尝试解析配置
+    let config = match serde_json::from_str::<Config>(&config_json) {
+        Ok(config) => config,
+        Err(_) => {
+            // 尝试解析旧格式
+            let old_config: OldConfig = serde_json::from_str(&config_json)
+                .map_err(|e| format!("解析配置失败: {}", e))?;
+            
+            // 转换为新格式
+            Config {
+                source_ssh: old_config.source_ssh,
+                target_ssh: old_config.target_ssh,
+                source_db: old_config.source_db,
+                target_db: old_config.target_db,
+                tables: old_config.tables.into_iter().map(|t| TableConfig {
+                    name: t.name,
+                    columns: t.columns,
+                    mask_rules: t.mask_rules,
+                    structure_only: false,
+                    ignore_foreign_keys: false,
+                }).collect(),
+            }
+        }
+    };
+
+    // 保存到SQLite
+    storage.save_config(name, &config)
+        .await
+        .map_err(|e| format!("保存到数据库失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn import_config(
+    file_path: String,
+) -> Result<Config, String> {
+    // 读取JSON文件
+    let config_json = fs::read_to_string(file_path)
+        .map_err(|e| format!("读取配置文件失败: {}", e))?;
+
+    // 尝试解析为旧格式
+    #[derive(Debug, Deserialize)]
+    struct OldTableConfig {
+        name: String,
+        columns: Vec<String>,
+        mask_rules: Vec<MaskRule>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct OldConfig {
+        source_ssh: Option<SSHConfig>,
+        target_ssh: Option<SSHConfig>,
+        source_db: DatabaseConfig,
+        target_db: DatabaseConfig,
+        tables: Vec<OldTableConfig>,
+    }
+
+    // 尝试解析配置
+    match serde_json::from_str::<Config>(&config_json) {
+        Ok(config) => Ok(config),
+        Err(_) => {
+            // 尝试解析旧格式
+            let old_config: OldConfig = serde_json::from_str(&config_json)
+                .map_err(|e| format!("解析配置失败: {}", e))?;
+            
+            // 转换为新格式
+            Ok(Config {
+                source_ssh: old_config.source_ssh,
+                target_ssh: old_config.target_ssh,
+                source_db: old_config.source_db,
+                target_db: old_config.target_db,
+                tables: old_config.tables.into_iter().map(|t| TableConfig {
+                    name: t.name,
+                    columns: t.columns,
+                    mask_rules: t.mask_rules,
+                    structure_only: false,
+                    ignore_foreign_keys: false,
+                }).collect(),
+            })
+        }
+    }
 } 
