@@ -72,10 +72,10 @@ import { ref, onMounted, computed } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { Config } from '../types';
 import DatabaseConfig from '../components/DatabaseConfig.vue';
 import TableConfig from '../components/TableConfig.vue';
 import { useRouter } from 'vue-router';
+import { Config } from '../types';
 
 const props = defineProps<{
   isCreating: boolean;
