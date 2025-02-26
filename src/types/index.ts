@@ -18,7 +18,7 @@ export interface SSHConfig {
   username: string;
   auth_type: 'password' | 'private_key';
   password?: string;
-  private_key?: string;
+  private_key_path?: string;
   passphrase?: string;
 }
 

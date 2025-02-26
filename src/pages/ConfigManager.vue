@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue';
 import { open } from "@tauri-apps/plugin-dialog";
 import { Plus, CaretRight, Document, DocumentCopy, Upload } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
-import type { Config } from '@/types';
 import { configApi, taskApi } from '@/services/api';
 import { useLoading } from '@/hooks/useLoading';
 import { useNotification } from '@/hooks/useNotification';
@@ -80,7 +79,7 @@ const copyConfig = async (name: string) => {
         // 加载原配置
         const config = await configApi.load(name);
         // 保存为新配置
-        await configApi.save(newName, { ...config, name: newName });
+        await configApi.save(config);
         showSuccess('复制配置成功');
         await loadConfigs();
       });

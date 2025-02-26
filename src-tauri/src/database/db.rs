@@ -80,30 +80,16 @@ impl DbCopier {
                         ssh_config,
                         &config.source_db,
                     ).await?;
-                    (client, Some(session))
+                    Ok((client, Some(session)))
                 }
                 None => {
                     let client = Self::connect_db(&config.source_db).await?;
-                    (client, None)
+                    Ok((client, None))
                 }
             }
         } else {
-            // 创建一个空的客户端，仅用于测试目标数据库
-            let empty_config = DatabaseConfig {
-                host: "localhost".to_string(),
-                port: 5432,
-                database: "postgres".to_string(),
-                username: "postgres".to_string(),
-                password: "".to_string(),
-                ssl_mode: "disable".to_string(),
-                ssh_config: None,
-            };
-            
-            // 注意：这里不实际连接，只是创建一个空客户端
-            let client = Self::connect_db(&empty_config).await?;
-                
-            (client, None)
-        };
+            Err(DbError::Connection("源数据库配置无效".to_string()))
+        }?;
 
         // 连接目标数据库（如果配置有效）
         let (target_client, target_ssh_session) = if target_valid {
@@ -113,30 +99,16 @@ impl DbCopier {
                         ssh_config,
                         &config.target_db,
                     ).await?;
-                    (client, Some(session))
+                    Ok((client, Some(session)))
                 }
                 None => {
                     let client = Self::connect_db(&config.target_db).await?;
-                    (client, None)
+                    Ok((client, None))
                 }
             }
         } else {
-            // 创建一个空的客户端，仅用于测试源数据库
-            let empty_config = DatabaseConfig {
-                host: "localhost".to_string(),
-                port: 5432,
-                database: "postgres".to_string(),
-                username: "postgres".to_string(),
-                password: "".to_string(),
-                ssl_mode: "disable".to_string(),
-                ssh_config: None,
-            };
-            
-            // 注意：这里不实际连接，只是创建一个空客户端
-            let client = Self::connect_db(&empty_config).await?;
-                
-            (client, None)
-        };
+            Err(DbError::Connection("目标数据库配置无效".to_string()))
+        }?;
 
         Ok(Self {
             source_client,

@@ -112,30 +112,7 @@ export const databaseApi = {
   },
   
   // 获取数据库表
-  getTables: (dbConfig: DatabaseConfig) => {
-    // 创建一个包含source_db的临时配置对象
-    const config = {
-      name: '',
-      source_db: { ...dbConfig },
-      target_db: {
-        host: '',
-        port: 5432,
-        database: '',
-        username: '',
-        password: '',
-        ssl_mode: 'prefer' as const
-      },
-      tables: []
-    };
-    
-    console.log('获取表列表，数据库配置:', {
-      host: dbConfig.host,
-      port: dbConfig.port,
-      database: dbConfig.database,
-      username: dbConfig.username,
-      ssl_mode: dbConfig.ssl_mode
-    });
-    
+  getTables: (config: Config) => {
     return invoke<string[]>('get_tables', { config });
   },
   

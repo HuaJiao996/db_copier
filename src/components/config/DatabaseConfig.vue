@@ -76,7 +76,7 @@
         <el-form-item label="认证方式">
           <el-radio-group v-model="dbConfig.ssh_config!.auth_type">
             <el-radio label="password">密码</el-radio>
-            <el-radio label="key">密钥</el-radio>
+            <el-radio label="private_key">密钥</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -89,13 +89,19 @@
             type="password" 
             show-password 
           />
-          <el-input 
-            v-else
-            v-model="dbConfig.ssh_config!.private_key" 
-            type="textarea" 
-            :rows="3"
-            placeholder="请输入 SSH 私钥内容"
-          />
+          <div v-else class="key-select">
+            <el-input
+              v-model="dbConfig.ssh_config!.private_key_path"
+              placeholder="请选择私钥文件"
+              readonly
+            >
+              <template #append>
+                <el-button @click="selectPrivateKey">
+                  选择文件
+                </el-button>
+              </template>
+            </el-input>
+          </div>
         </el-form-item>
       </div>
     </div>
@@ -107,6 +113,7 @@ import { computed, ref } from 'vue';
 import type { DatabaseConfig } from '@/types';
 import { databaseApi } from '@/services/api';
 import { ElMessage } from 'element-plus';
+import { open } from "@tauri-apps/plugin-dialog";
 
 const props = defineProps<{
   type: 'source' | 'target';
@@ -138,7 +145,7 @@ const enableSSHModel = computed({
         username: '',
         auth_type: 'password',
         password: '',
-        private_key: ''
+        private_key_path: ''
       };
   }});
 
@@ -179,6 +186,26 @@ const testConnection = async () => {
     ElMessage.error(`连接失败: ${error}`);
   } finally {
     testingConnection.value = false;
+  }
+};
+
+// 选择私钥文件
+const selectPrivateKey = async () => {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [{
+        name: 'SSH Private Key',
+        extensions: ['pem', 'key', 'ppk']
+      }]
+    });
+    
+    if (selected && typeof selected === 'string') {
+      dbConfig.value.ssh_config!.private_key_path = selected;
+    }
+  } catch (error) {
+    console.error('选择私钥文件失败:', error);
+    ElMessage.error('选择私钥文件失败');
   }
 };
 

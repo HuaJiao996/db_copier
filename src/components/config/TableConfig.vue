@@ -315,7 +315,7 @@ const loadTables = async () => {
   try {
     tableLoading.value = true;
     console.log('开始加载表列表');
-    const tables = await databaseApi.getTables(props.config.source_db);
+    const tables = await databaseApi.getTables(props.config);
     console.log('获取到表列表:', tables);
     availableTables.value = tables;
     
