@@ -1,4 +1,4 @@
-use crate::models::{Config, DatabaseConfig, SSHConfig, TableConfig, MaskRule, MaskRuleType};
+use crate::database::{Config, DatabaseConfig, SSHConfig, TableConfig, MaskRule, MaskRuleType};
 use ssh2::Session;
 use std::net::TcpStream;
 use tokio_postgres::{Client, Config as PgConfig};
@@ -8,17 +8,13 @@ use std::sync::Arc;
 use postgres_native_tls;
 use log::{info, error};
 use std::collections::HashMap;
-use crate::monitor::MemoryMonitor;
 use std::fmt;
 use sha2::{Sha256, Digest};
 use serde::{Serialize, Deserialize};
 use futures::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
 use tokio::sync::RwLock;
-use std::pin::Pin;
-use std::future::Future;
-use tokio::time::{sleep, Duration};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::time::Duration;
 
 #[derive(Debug)]
 pub enum DbError {
@@ -62,39 +58,84 @@ pub struct DbCopier {
     _source_ssh_session: Option<Session>,
     _target_ssh_session: Option<Session>,
     table_info_cache: Arc<RwLock<HashMap<String, TableInfo>>>,
-    memory_monitor: Arc<MemoryMonitor>,
 }
 
 impl DbCopier {
-    pub async fn new(config: &Config, memory_monitor: Arc<MemoryMonitor>) -> Result<Self, DbError> {
-        // 连接源数据库
-        let (source_client, source_ssh_session) = match &config.source_ssh {
-            Some(ssh_config) => {
-                let (client, session) = Self::connect_with_ssh(
-                    ssh_config,
-                    &config.source_db,
-                ).await?;
-                (client, Some(session))
+    pub async fn new(config: &Config) -> Result<Self, DbError> {
+        // 检查源数据库配置是否有效
+        let source_valid = !config.source_db.host.is_empty() && 
+                          !config.source_db.database.is_empty() && 
+                          !config.source_db.username.is_empty();
+        
+        // 检查目标数据库配置是否有效
+        let target_valid = !config.target_db.host.is_empty() && 
+                          !config.target_db.database.is_empty() && 
+                          !config.target_db.username.is_empty();
+        
+        // 连接源数据库（如果配置有效）
+        let (source_client, source_ssh_session) = if source_valid {
+            match &config.source_db.ssh_config {
+                Some(ssh_config) => {
+                    let (client, session) = Self::connect_with_ssh(
+                        ssh_config,
+                        &config.source_db,
+                    ).await?;
+                    (client, Some(session))
+                }
+                None => {
+                    let client = Self::connect_db(&config.source_db).await?;
+                    (client, None)
+                }
             }
-            None => {
-                let client = Self::connect_db(&config.source_db).await?;
-                (client, None)
-            }
+        } else {
+            // 创建一个空的客户端，仅用于测试目标数据库
+            let empty_config = DatabaseConfig {
+                host: "localhost".to_string(),
+                port: 5432,
+                database: "postgres".to_string(),
+                username: "postgres".to_string(),
+                password: "".to_string(),
+                ssl_mode: "disable".to_string(),
+                ssh_config: None,
+            };
+            
+            // 注意：这里不实际连接，只是创建一个空客户端
+            let client = Self::connect_db(&empty_config).await?;
+                
+            (client, None)
         };
 
-        // 连接目标数据库
-        let (target_client, target_ssh_session) = match &config.target_ssh {
-            Some(ssh_config) => {
-                let (client, session) = Self::connect_with_ssh(
-                    ssh_config,
-                    &config.target_db,
-                ).await?;
-                (client, Some(session))
+        // 连接目标数据库（如果配置有效）
+        let (target_client, target_ssh_session) = if target_valid {
+            match &config.target_db.ssh_config {
+                Some(ssh_config) => {
+                    let (client, session) = Self::connect_with_ssh(
+                        ssh_config,
+                        &config.target_db,
+                    ).await?;
+                    (client, Some(session))
+                }
+                None => {
+                    let client = Self::connect_db(&config.target_db).await?;
+                    (client, None)
+                }
             }
-            None => {
-                let client = Self::connect_db(&config.target_db).await?;
-                (client, None)
-            }
+        } else {
+            // 创建一个空的客户端，仅用于测试源数据库
+            let empty_config = DatabaseConfig {
+                host: "localhost".to_string(),
+                port: 5432,
+                database: "postgres".to_string(),
+                username: "postgres".to_string(),
+                password: "".to_string(),
+                ssl_mode: "disable".to_string(),
+                ssh_config: None,
+            };
+            
+            // 注意：这里不实际连接，只是创建一个空客户端
+            let client = Self::connect_db(&empty_config).await?;
+                
+            (client, None)
         };
 
         Ok(Self {
@@ -103,7 +144,6 @@ impl DbCopier {
             _source_ssh_session: source_ssh_session,
             _target_ssh_session: target_ssh_session,
             table_info_cache: Arc::new(RwLock::new(HashMap::new())),
-            memory_monitor,
         })
     }
 
@@ -136,24 +176,39 @@ impl DbCopier {
 
         // SSH认证
         info!("开始 SSH 认证");
-        if let Some(key_path) = &ssh_config.private_key_path {
-            info!("使用密钥认证: {}", key_path);
-            session.userauth_pubkey_file(
-                &ssh_config.username,
-                None,
-                std::path::Path::new(key_path),
-                None,
-            ).map_err(|e| {
-                error!("SSH 密钥认证失败: {}", e);
-                DbError::SSH(e.to_string())
-            })?;
-        } else if let Some(password) = &ssh_config.password {
-            info!("使用密码认证");
-            session.userauth_password(&ssh_config.username, password)
-                .map_err(|e| {
-                    error!("SSH 密码认证失败: {}", e);
-                    DbError::SSH(e.to_string())
-                })?;
+        match ssh_config.auth_type.as_str() {
+            "password" => {
+                info!("使用密码认证");
+                if let Some(password) = &ssh_config.password {
+                    info!("使用密码认证");
+                    session.userauth_password(&ssh_config.username, password)
+                        .map_err(|e| {
+                            error!("SSH 密码认证失败: {}", e);
+                            DbError::SSH(e.to_string())
+                        })?;
+                } else {
+                    return Err(DbError::SSH("密码不能为空".to_string()));
+                }
+            }
+            "private_key" => {
+                if let Some(key_path) = &ssh_config.private_key_path {
+                    info!("使用密钥认证: {}", key_path);
+                    session.userauth_pubkey_file(
+                        &ssh_config.username,
+                        None,
+                        std::path::Path::new(key_path),
+                        None,
+                    ).map_err(|e| {
+                        error!("SSH 密钥认证失败: {}", e);
+                        DbError::SSH(e.to_string())
+                    })?;
+                } else {
+                    return Err(DbError::SSH("密钥路径不能为空".to_string()));
+                }
+            }
+            _ => {
+                return Err(DbError::SSH("不支持的认证方式".to_string()));
+            }
         }
 
         info!("设置 SSH 端口转发");
@@ -188,6 +243,19 @@ impl DbCopier {
         info!("开始连接数据库 {}:{}/{}", config.host, config.port, config.database);
         info!("SSL 模式: {}", config.ssl_mode);
         
+        // 验证连接参数
+        if config.host.is_empty() {
+            return Err(DbError::Connection("数据库主机地址不能为空".to_string()));
+        }
+        
+        if config.database.is_empty() {
+            return Err(DbError::Connection("数据库名不能为空".to_string()));
+        }
+        
+        if config.username.is_empty() {
+            return Err(DbError::Connection("数据库用户名不能为空".to_string()));
+        }
+        
         let mut pg_config = PgConfig::new();
         pg_config
             .host(&config.host)
@@ -214,63 +282,38 @@ impl DbCopier {
                 },
             });
 
-        let mut attempts = 0;
-        let max_attempts = 3;
-        let mut last_error = None;
-
-        while attempts < max_attempts {
-            info!("尝试连接数据库 (第 {} 次尝试)", attempts + 1);
-            
-            match async {
-                info!("创建 TLS 连接器");
-                let mut builder = native_tls::TlsConnector::builder();
-                
-                // 如果启用了 SSL，允许自签名证书
-                if config.ssl_mode == "require" {
-                    info!("允许自签名证书");
-                    builder.danger_accept_invalid_certs(true);
-                }
-                
-                let connector = builder
-                    .build()
-                    .map_err(|e| DbError::Connection(format!("创建 TLS 连接器失败: {}", e)))?;
-                    
-                let connector = postgres_native_tls::MakeTlsConnector::new(connector);
-
-                info!("建立数据库连接");
-                let (client, connection) = pg_config
-                    .connect(connector)
-                    .await
-                    .map_err(|e| DbError::Connection(format!("连接数据库失败 ({}:{}): {}", config.host, config.port, e)))?;
-
-                tokio::spawn(async move {
-                    if let Err(e) = connection.await {
-                        error!("数据库连接错误: {}", e);
-                    }
-                });
-
-                info!("数据库连接成功");
-                Ok(client)
-            }.await {
-                Ok(client) => {
-                    info!("成功建立数据库连接");
-                    return Ok(client)
-                },
-                Err(e) => {
-                    error!("连接失败: {}", e);
-                    last_error = Some(e);
-                    attempts += 1;
-                    if attempts < max_attempts {
-                        let wait_time = 2u64.pow(attempts as u32);
-                        info!("等待 {} 秒后重试", wait_time);
-                        tokio::time::sleep(Duration::from_secs(wait_time)).await;
-                    }
-                }
-            }
+        info!("创建 TLS 连接器");
+        let mut builder = native_tls::TlsConnector::builder();
+        
+        // 如果启用了 SSL，允许自签名证书
+        if config.ssl_mode == "require" {
+            info!("允许自签名证书");
+            builder.danger_accept_invalid_certs(true);
         }
+        
+        let connector = builder
+            .build()
+            .map_err(|e| DbError::Connection(format!("创建 TLS 连接器失败: {}", e)))?;
+            
+        let connector = postgres_native_tls::MakeTlsConnector::new(connector);
 
-        error!("达到最大重试次数，连接失败");
-        Err(last_error.unwrap())
+        info!("建立数据库连接 {}:{}/{}", config.host, config.port, config.database);
+        let (client, connection) = pg_config
+            .connect(connector)
+            .await
+            .map_err(|e| {
+                error!("连接数据库失败 ({}:{}): {}", config.host, config.port, e);
+                DbError::Connection(format!("连接数据库失败 ({}:{}): {}", config.host, config.port, e))
+            })?;
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                error!("数据库连接错误: {}", e);
+            }
+        });
+
+        info!("数据库连接成功 {}:{}/{}", config.host, config.port, config.database);
+        Ok(client)
     }
 
     #[allow(dead_code)]
@@ -311,50 +354,15 @@ impl DbCopier {
         }
     }
 
-    #[allow(dead_code)]
-    async fn execute_with_retry<F, T, E>(&self, f: F, retries: u32) -> Result<T, E>
-    where
-        F: Fn() -> Pin<Box<dyn Future<Output = Result<T, E>> + Send>>,
-        E: std::fmt::Display,
-    {
-        let mut attempts = 0;
-        let mut last_error = None;
-
-        while attempts < retries {
-            match f().await {
-                Ok(result) => return Ok(result),
-                Err(e) => {
-                    last_error = Some(e);
-                    attempts += 1;
-                    if attempts < retries {
-                        sleep(Duration::from_secs(2u64.pow(attempts))).await;
-                    }
-                }
-            }
-        }
-
-        Err(last_error.unwrap())
-    }
-
-    // 添加内存监控使用
-    fn update_memory_usage(&self, delta: isize) {
-        self.memory_monitor.update_usage(delta);
-    }
-
     async fn execute_batch_insert(
         &self,
         table: &TableConfig,
         batch_values: &mut Vec<String>,
         batch_params: &mut Vec<String>,
-        memory_counter: &AtomicUsize,
     ) -> Result<(), DbError> {
         if batch_values.is_empty() {
             return Ok(());
         }
-
-        let total_size = batch_values.iter().map(|s| s.len()).sum::<usize>();
-        self.update_memory_usage(-(total_size as isize));
-        memory_counter.fetch_sub(total_size, Ordering::Relaxed);
 
         let insert_sql = format!(
             "INSERT INTO {} ({}) VALUES {}",
@@ -405,8 +413,6 @@ impl DbCopier {
             for column in table.columns.iter() {
                 value_count += 1;
                 let value: String = row.get(column.as_str());
-                // 更新内存使用统计
-                self.update_memory_usage(value.len() as isize);
                 values.push(value);
                 row_placeholders.push(format!("${}", value_count));
             }
@@ -417,10 +423,6 @@ impl DbCopier {
                 let params: Vec<&(dyn ToSql + Sync)> = values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
                 client.execute(&full_insert_sql, &params[..]).await
                     .map_err(|e| DbError::Query(e.to_string()))?;
-                
-                // 更新内存使用统计（减少）
-                let freed_memory: isize = -(values.iter().map(|s| s.len() as isize).sum::<isize>());
-                self.update_memory_usage(freed_memory);
                 
                 values.clear();
                 batch_params.clear();
@@ -434,10 +436,6 @@ impl DbCopier {
             let params: Vec<&(dyn ToSql + Sync)> = values.iter().map(|v| v as &(dyn ToSql + Sync)).collect();
             client.execute(&full_insert_sql, &params[..]).await
                 .map_err(|e| DbError::Query(e.to_string()))?;
-            
-            // 更新内存使用统计（减少）
-            let freed_memory: isize = -(values.iter().map(|s| s.len() as isize).sum::<isize>());
-            self.update_memory_usage(freed_memory);
         }
 
         Ok(())
@@ -528,17 +526,22 @@ impl DbCopier {
     }
 
     pub async fn get_table_columns(&self, table_name: &str) -> Result<Vec<String>, DbError> {
-        let rows = self.source_client
-            .query(
-                "SELECT column_name FROM information_schema.columns 
-                 WHERE table_schema = 'public' AND table_name = $1
-                 ORDER BY ordinal_position",
-                &[&table_name],
-            )
+        let query = "
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = $1 
+            ORDER BY ordinal_position
+        ";
+        
+        let rows = self.source_client.query(query, &[&table_name])
             .await
-            .map_err(|e| DbError::Query(e.to_string()))?;
-
-        Ok(rows.iter().map(|row| row.get(0)).collect())
+            .map_err(|e| DbError::Query(format!("获取表列失败: {}", e)))?;
+        
+        let columns = rows.iter()
+            .map(|row| row.get::<_, String>(0))
+            .collect();
+        
+        Ok(columns)
     }
 
     pub async fn get_table_info(&self, table_name: &str) -> Result<TableInfo, DbError> {
@@ -706,6 +709,32 @@ impl DbCopier {
             }
         }
 
+        Ok(())
+    }
+
+    pub async fn test_connection(config: &DatabaseConfig) -> Result<(), DbError> {
+        // 测试源数据库连接
+        if !config.host.is_empty() && 
+           !config.database.is_empty() && 
+           !config.username.is_empty() {
+                
+                match &config.ssh_config {
+                    Some(ssh_config) => {
+                        let (_client, _session) = Self::connect_with_ssh(
+                            ssh_config,
+                            &config,
+                        ).await?;
+                        // 连接成功，不需要保持连接
+                    }
+                    None => {
+                        let _client = Self::connect_db(&config).await?;
+                        // 连接成功，不需要保持连接
+                    }
+                }
+            } else {
+                return Err(DbError::Connection("源数据库配置无效".to_string()));
+            }
+        
         Ok(())
     }
 }

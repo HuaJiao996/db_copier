@@ -37,14 +37,5 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
-  },
-  "plugins": {
-    "watcher": {
-      "ignoreFiles": [
-        "data/**/*.db",
-        "data/**/*.sqlite",
-        "data/**/*.sqlite3"
-      ]
-    }
   }
 }

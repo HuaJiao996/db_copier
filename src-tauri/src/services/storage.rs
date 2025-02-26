@@ -1,4 +1,4 @@
-use crate::models::{Config, TaskStatus};
+use crate::database::{Config, TaskStatus};
 use rusqlite::{params};
 use std::path::PathBuf;
 use tokio_rusqlite::Connection as AsyncConnection;
@@ -47,25 +47,23 @@ impl Storage {
         Ok(Self { conn })
     }
 
-    pub async fn save_config(&self, name: &str, config: &Config) -> Result<(), tokio_rusqlite::Error> {
+    pub async fn save_config(&self, config: &Config) -> Result<(), tokio_rusqlite::Error> {
+        let name = config.name.clone();
         let content = serde_json::to_string(config).map_err(|e| {
             tokio_rusqlite::Error::Rusqlite(rusqlite::Error::InvalidParameterName(
                 format!("序列化配置失败: {}", e)
             ))
         })?;
 
-        let name_clone = name.to_string();
-        let content_clone = content.clone();
-
         self.conn.call(move |conn| {
             Ok(conn.execute(
                 "INSERT OR REPLACE INTO configs (name, content, updated_at) 
                  VALUES (?1, ?2, CURRENT_TIMESTAMP)",
-                params![name_clone, content_clone],
+                params![name, content],
             )?)
         }).await?;
 
-        info!("保存配置成功: {}", name);
+        info!("保存配置成功");
         Ok(())
     }
 

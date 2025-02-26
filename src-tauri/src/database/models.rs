@@ -5,6 +5,7 @@ pub struct SSHConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
+    pub auth_type: String,
     pub private_key_path: Option<String>,
     pub password: Option<String>,
 }
@@ -17,6 +18,7 @@ pub struct DatabaseConfig {
     pub username: String,
     pub password: String,
     pub ssl_mode: String,
+    pub ssh_config: Option<SSHConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -26,6 +28,7 @@ pub struct TableConfig {
     pub mask_rules: Vec<MaskRule>,
     pub structure_only: bool,
     pub ignore_foreign_keys: bool,
+    pub last_updated: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -47,8 +50,7 @@ pub enum MaskRuleType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
-    pub source_ssh: Option<SSHConfig>,
-    pub target_ssh: Option<SSHConfig>,
+    pub name: String,
     pub source_db: DatabaseConfig,
     pub target_db: DatabaseConfig,
     pub tables: Vec<TableConfig>,

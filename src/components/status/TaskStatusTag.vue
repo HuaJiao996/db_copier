@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import type { TaskState } from '../types'
+import type { TaskState } from '@/types'
 import { computed } from 'vue'
 
 const props = defineProps<{

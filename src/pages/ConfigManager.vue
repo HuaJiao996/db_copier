@@ -1,28 +1,30 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, CaretRight, Document, DocumentCopy, Upload } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
-import type { Config } from '../types';
+import type { Config } from '@/types';
+import { configApi, taskApi } from '@/services/api';
+import { useLoading } from '@/hooks/useLoading';
+import { useNotification } from '@/hooks/useNotification';
+import { ElMessageBox } from 'element-plus';
 
 const router = useRouter();
-const loading = ref(false);
+const { isLoading: loading, runWithLoading } = useLoading();
+const { showSuccess, showError, showWarning, showConfirm, showPrompt } = useNotification();
 const configList = ref<{ name: string }[]>([]);
 const selectedConfigs = ref<{ name: string }[]>([]);
 const migrateLoading = ref(false);
 
 const loadConfigs = async () => {
-  try {
-    loading.value = true;
-    const configs = await invoke<string[]>('list_configs');
-    configList.value = configs.map(name => ({ name }));
-  } catch (error) {
-    ElMessage.error('加载配置失败: ' + error);
-  } finally {
-    loading.value = false;
-  }
+  await runWithLoading(async () => {
+    try {
+      const configs = await configApi.list();
+      configList.value = configs.map(name => ({ name }));
+    } catch (error) {
+      showError('加载配置失败: ' + error);
+    }
+  });
 };
 
 const createConfig = () => {
@@ -35,133 +37,111 @@ const handleConfigClick = (row: { name: string }) => {
 
 const handleConfigDelete = async (name: string) => {
   try {
-    await ElMessageBox.confirm('确定要删除该配置吗？', '提示', {
-      type: 'warning',
-    });
-    await invoke('delete_config', { name });
-    ElMessage.success('删除配置成功');
+    const confirmed = await showConfirm('提示', '确定要删除该配置吗？', { type: 'warning' });
+    if (!confirmed) return;
+    
+    await configApi.delete(name);
+    showSuccess('删除配置成功');
     await loadConfigs();
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('删除配置失败: ' + error);
-    }
+    showError('删除配置失败: ' + error);
   }
 };
 
 const startTask = async (name: string) => {
-  try {
-    loading.value = true;
-    // 先加载配置
-    const config = await invoke<Config>('load_config', { name });
-    // 启动任务
-    const taskId = await invoke<string>('start_copy', { config });
-    ElMessage.success({
-      message: '任务创建成功',
-      duration: 2000
-    });
-    // 跳转到任务监控页面，并传递任务ID
-    router.push({
-      path: '/',
-      query: { taskId }
-    });
-  } catch (error) {
-    ElMessage.error({
-      message: '创建任务失败: ' + error,
-      duration: 5000
-    });
-  } finally {
-    loading.value = false;
-  }
+  await runWithLoading(async () => {
+    try {
+      // 先加载配置
+      const config = await configApi.load(name);
+      // 启动任务
+      const taskId = await taskApi.start(config);
+      showSuccess('任务创建成功');
+      // 跳转到任务监控页面，并传递任务ID
+      router.push({
+        path: '/',
+        query: { taskId }
+      });
+    } catch (error) {
+      showError('创建任务失败: ' + error);
+    }
+  });
 };
 
 const copyConfig = async (name: string) => {
   try {
     // 弹出输入框让用户输入新配置名称
-    const { value: newName } = await ElMessageBox.prompt('请输入新配置名称', '复制配置', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+    const newName = await showPrompt('复制配置', '请输入新配置名称', {
       inputPattern: /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,50}$/,
       inputErrorMessage: '配置名称必须是2-50个字符（支持中文、字母、数字、下划线）'
     });
     
     if (newName) {
-      loading.value = true;
-      // 加载原配置
-      const config = await invoke<Config>('load_config', { name });
-      // 保存为新配置
-      await invoke('save_config', { 
-        name: newName, 
-        config: { ...config, name: newName }
+      await runWithLoading(async () => {
+        // 加载原配置
+        const config = await configApi.load(name);
+        // 保存为新配置
+        await configApi.save(newName, { ...config, name: newName });
+        showSuccess('复制配置成功');
+        await loadConfigs();
       });
-      ElMessage.success('复制配置成功');
-      await loadConfigs();
     }
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('复制配置失败: ' + error);
-    }
-  } finally {
-    loading.value = false;
+    showError('复制配置失败: ' + error);
   }
 };
 
 const startBatchTasks = async () => {
   if (selectedConfigs.value.length === 0) {
-    ElMessage.warning('请选择要启动的配置');
+    showWarning('请选择要启动的配置');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要启动选中的 ${selectedConfigs.value.length} 个配置吗？`,
+    const confirmed = await showConfirm(
       '批量启动任务',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
+      `确定要启动选中的 ${selectedConfigs.value.length} 个配置吗？`,
+      { type: 'warning' }
     );
 
-    loading.value = true;
-    const results = await Promise.allSettled(
-      selectedConfigs.value.map(async (config) => {
-        try {
-          const loadedConfig = await invoke<Config>('load_config', { name: config.name });
-          const taskId = await invoke<string>('start_copy', { config: loadedConfig });
-          return { name: config.name, success: true, taskId };
-        } catch (error) {
-          return { name: config.name, success: false, error };
-        }
-      })
-    );
+    if (!confirmed) return;
 
-    const succeeded = results
-      .filter((r): r is PromiseFulfilledResult<{ name: string; success: true; taskId: string }> => 
-        r.status === 'fulfilled' && r.value.success
+    await runWithLoading(async () => {
+      const results = await Promise.allSettled(
+        selectedConfigs.value.map(async (config) => {
+          try {
+            const loadedConfig = await configApi.load(config.name);
+            const taskId = await taskApi.start(loadedConfig);
+            return { name: config.name, success: true, taskId };
+          } catch (error) {
+            return { name: config.name, success: false, error };
+          }
+        })
       );
-    const failed = results.filter(r => 
-      r.status === 'fulfilled' && !r.value.success
-    ).length;
 
-    if (succeeded.length > 0) {
-      ElMessage.success(`成功启动 ${succeeded.length} 个任务`);
-      // 跳转到任务监控页面，并传递所有成功的任务ID
-      router.push({
-        path: '/',
-        query: { 
-          taskId: succeeded.map(r => r.value.taskId).join(',')
-        }
-      });
-    }
-    if (failed > 0) {
-      ElMessage.error(`${failed} 个任务启动失败`);
-    }
+      const succeeded = results
+        .filter((r): r is PromiseFulfilledResult<{ name: string; success: true; taskId: string }> => 
+          r.status === 'fulfilled' && r.value.success
+        );
+      const failed = results.filter(r => 
+        r.status === 'fulfilled' && !r.value.success
+      ).length;
+
+      if (succeeded.length > 0) {
+        showSuccess(`成功启动 ${succeeded.length} 个任务`);
+        // 跳转到任务监控页面，并传递所有成功的任务ID
+        router.push({
+          path: '/',
+          query: { 
+            taskId: succeeded.map(r => r.value.taskId).join(',')
+          }
+        });
+      }
+      if (failed > 0) {
+        showError(`${failed} 个任务启动失败`);
+      }
+    });
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('批量启动任务失败');
-    }
-  } finally {
-    loading.value = false;
+    showError('批量启动任务失败');
   }
 };
 
@@ -192,14 +172,11 @@ const importConfig = async () => {
     for (const filePath of files) {
       try {
         // 读取并解析JSON文件
-        const config = await invoke<Config>('import_config', { filePath });
+        const config = await configApi.import(filePath);
         const fileName = filePath.split(/[/\\]/).pop()?.replace('.json', '') || '';
         
         // 保存配置
-        await invoke('save_config', { 
-          name: fileName, 
-          config: { ...config, name: fileName }
-        });
+        await configApi.save(fileName, { ...config, name: fileName });
         
         success++;
         messages.push(`成功导入配置: ${fileName}`);
@@ -212,16 +189,13 @@ const importConfig = async () => {
     // 显示导入结果
     await ElMessageBox.alert(
       `导入完成。成功: ${success}, 失败: ${failed}\n${messages.join('\n')}`,
+      '导入结果',
       {
-        title: '导入结果',
-        confirmButtonText: '确定',
-        callback: () => {
-          loadConfigs();
-        }
+        confirmButtonText: '确定'
       }
     );
   } catch (error) {
-    ElMessage.error('导入失败: ' + error);
+    showError('导入失败: ' + error);
   } finally {
     migrateLoading.value = false;
   }

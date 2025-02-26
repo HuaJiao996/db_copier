@@ -27,7 +27,7 @@
 
 ### 从发布版本安装
 
-访问 [Releases](https://github.com/your-repo/releases) 页面下载适用于您操作系统的安装包：
+访问 [Releases](https://github.com/HuaJiao996/db_copier/releases) 页面下载适用于您操作系统的安装包：
 
 - Windows: `.msi` 或 `.exe`
 - macOS: `.dmg`

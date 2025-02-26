@@ -149,7 +149,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { invoke } from "@tauri-apps/api/core";
 import { Download, Refresh, Search } from '@element-plus/icons-vue';
-import type { TaskStatus } from '../types';
+import type { TaskStatus } from '@/types';
 import { useRoute } from 'vue-router';
 
 const loading = ref(false);

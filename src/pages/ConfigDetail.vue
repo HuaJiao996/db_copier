@@ -38,17 +38,13 @@
             <!-- 源数据库配置 -->
             <DatabaseConfig
               type="source"
-              v-model:db-config="currentConfig.source_db"
-              v-model:ssh-config="currentConfig.source_ssh"
-              v-model:enableSSH="enableSourceSSH"
+              v-model="currentConfig.source_db"
             />
 
             <!-- 目标数据库配置 -->
             <DatabaseConfig
               type="target"
-              v-model:db-config="currentConfig.target_db"
-              v-model:ssh-config="currentConfig.target_ssh"
-              v-model:enableSSH="enableTargetSSH"
+              v-model="currentConfig.target_db"
             />
           </div>
         </el-tab-pane>
@@ -56,9 +52,10 @@
         <el-tab-pane label="表和列配置" name="tables">
           <!-- 表配置 -->
           <TableConfig
+            ref="tableConfigRef"
             :config="currentConfig"
             :loading="loading"
-            v-model:selected-tables="currentConfig.tables"
+            v-model:selectedTables="currentConfig.tables"
             @start-task="startTask"
           />
         </el-tab-pane>
@@ -68,14 +65,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { invoke } from "@tauri-apps/api/core";
-import { ElMessage } from 'element-plus';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import DatabaseConfig from '../components/DatabaseConfig.vue';
-import TableConfig from '../components/TableConfig.vue';
+import DatabaseConfig from '@/components/config/DatabaseConfig.vue';
+import TableConfig from '@/components/config/TableConfig.vue';
 import { useRouter } from 'vue-router';
-import { Config } from '../types';
+import type { Config, TableConfig as TableConfigType } from '@/types';
+import { configApi, taskApi } from '@/services/api';
+import { useLoading } from '@/hooks/useLoading';
+import { useNotification } from '@/hooks/useNotification';
+import { formatError } from '@/utils/error';
 
 const props = defineProps<{
   isCreating: boolean;
@@ -84,31 +83,29 @@ const props = defineProps<{
 
 const router = useRouter();
 const formRef = ref<FormInstance>();
+const tableConfigRef = ref<InstanceType<typeof TableConfig>>();
 const activeTab = ref('connection');
-const loading = ref(false);
+const { isLoading: loading, runWithLoading } = useLoading();
+const { showSuccess, showError, showWarning } = useNotification();
 
 const initConfig = (): Config => ({
   name: props.configName || '',
   source_db: {
-    type: 'postgresql',
     host: '',
     port: 5432,
     database: '',
     username: '',
     password: '',
-    ssl_mode: 'require'
+    ssl_mode: 'prefer'
   },
   target_db: {
-    type: 'postgresql',
     host: '',
     port: 5432,
     database: '',
     username: '',
     password: '',
-    ssl_mode: 'require'
+    ssl_mode: 'prefer'
   },
-  source_ssh: undefined,
-  target_ssh: undefined,
   tables: []
 });
 
@@ -127,24 +124,57 @@ const canStartTask = computed(() => {
   return currentConfig.value.tables && currentConfig.value.tables.length > 0;
 });
 
+// 监听currentConfig变化
+watch(currentConfig, (newValue) => {
+  console.log('当前配置变化:', JSON.parse(JSON.stringify(newValue)));
+}, { deep: true });
+
+// 监听activeTab变化，当切换到表和列配置时自动加载表结构
+watch(activeTab, async (newTab) => {
+  if (newTab === 'tables' && currentConfig.value.source_db) {
+    // 确保数据库连接信息已填写
+    if (!currentConfig.value.source_db.host || 
+        !currentConfig.value.source_db.database || 
+        !currentConfig.value.source_db.username) {
+      showWarning('请先完成数据库连接配置');
+      activeTab.value = 'connection';
+      return;
+    }
+    // 自动加载表结构
+    if (tableConfigRef.value) {
+      tableConfigRef.value.loadTables();
+    }
+  }
+});
+
 const loadConfig = async () => {
   if (!props.configName) return;
   
-  try {
-    loading.value = true;
-    const config = await invoke<Config>('load_config', { name: props.configName });
-    currentConfig.value = {
-      ...config,
-      name: props.configName // 确保名称正确
-    };
-    enableSourceSSH.value = !!config.source_ssh;
-    enableTargetSSH.value = !!config.target_ssh;
-  } catch (error) {
-    ElMessage.error('加载配置失败: ' + error);
-    router.push('/config');
-  } finally {
-    loading.value = false;
-  }
+  const configName = props.configName; // 确保非空
+  
+  await runWithLoading(async () => {
+    try {
+      const config = await configApi.load(configName);
+      console.log('加载到的原始配置:', JSON.stringify(config));
+      
+      // 确保数据库配置中的ssl_mode有默认值
+      if (!config.source_db.ssl_mode) {
+        config.source_db.ssl_mode = 'prefer';
+      }
+      if (!config.target_db.ssl_mode) {
+        config.target_db.ssl_mode = 'prefer';
+      }
+      
+      // 更新当前配置
+      currentConfig.value = config;
+      
+      console.log('加载配置成功:', JSON.stringify(currentConfig.value));
+    } catch (error) {
+      console.error('加载配置失败:', error);
+      showError('加载配置失败: ' + formatError(error));
+      router.push('/config');
+    }
+  });
 };
 
 const saveConfig = async () => {
@@ -152,71 +182,38 @@ const saveConfig = async () => {
 
   try {
     await formRef.value.validate();
-    loading.value = true;
     
-    // 根据 SSH 启用状态设置配置
-    const configToSave = { ...currentConfig.value };
-    if (!enableSourceSSH.value) {
-      configToSave.source_ssh = undefined;
-    }
-    if (!enableTargetSSH.value) {
-      configToSave.target_ssh = undefined;
-    }
-
-    // 确保表配置格式正确
-    configToSave.tables = configToSave.tables.map(table => {
-      if (typeof table === 'string') {
-        return {
-          name: table,
-          columns: [],
-          mask_rules: []
-        };
-      }
-      return table;
+    await runWithLoading(async () => {
+      // 强制等待一个tick，确保所有数据更新都已完成
+      await nextTick();
+      
+      
+      await configApi.save(currentConfig.value);
+      showSuccess('保存配置成功');
     });
-    
-    await invoke('save_config', { 
-      name: configToSave.name, 
-      config: configToSave 
-    });
-    
-    ElMessage.success('保存配置成功');
   } catch (error) {
     console.error('保存配置失败:', error);
-    if (error instanceof Error) {
-      ElMessage.error(error.message);
-    } else {
-      ElMessage.error('保存配置失败，请检查表单填写是否正确');
-    }
-  } finally {
-    loading.value = false;
+    showError('保存配置失败: ' + formatError(error));
   }
 };
 
 const startTask = async () => {
   if (!canStartTask.value) {
-    ElMessage.warning('请选择要复制的表');
+    showWarning('请选择要复制的表');
     return;
   }
 
-  try {
-    loading.value = true;
-    await invoke<string>('start_copy', { config: currentConfig.value });
-    ElMessage.success({
-      message: '任务创建成功',
-      duration: 2000
-    });
-    
-    // 跳转到任务监控页面
-    router.push('/');
-  } catch (error) {
-    ElMessage.error({
-      message: '创建任务失败: ' + error,
-      duration: 5000
-    });
-  } finally {
-    loading.value = false;
-  }
+  await runWithLoading(async () => {
+    try {
+      await taskApi.start(currentConfig.value);
+      showSuccess('任务创建成功');
+      
+      // 跳转到任务监控页面
+      router.push('/');
+    } catch (error) {
+      showError('创建任务失败: ' + formatError(error));
+    }
+  });
 };
 
 const goBack = () => {
@@ -224,8 +221,16 @@ const goBack = () => {
 };
 
 onMounted(() => {
+  console.log('ConfigDetail组件挂载，isCreating:', props.isCreating, 'configName:', props.configName);
+  
   if (!props.isCreating && props.configName) {
+    console.log('开始加载配置:', props.configName);
     loadConfig();
+  } else {
+    console.log('创建新配置');
+    // 确保初始化默认值
+    currentConfig.value = initConfig();
+    console.log('初始化配置:', JSON.stringify(currentConfig.value));
   }
 });
 </script>

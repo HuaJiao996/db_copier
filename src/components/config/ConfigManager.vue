@@ -38,9 +38,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import type { Config } from '@/types'
 import { ElMessage } from 'element-plus'
-import type { Config } from '../types'
+import { configApi } from '@/services/api'
 
 const props = defineProps<{
   modelValue: boolean
@@ -50,6 +50,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void
   (e: 'config-loaded', config: Config): void
+  (e: 'saved', configName: string): void
 }>()
 
 const visible = computed({
@@ -60,57 +61,72 @@ const visible = computed({
 const activeTab = ref('save')
 const configName = ref('')
 const configList = ref<{ name: string }[]>([])
+const loading = ref(false)
 
-const refreshConfigList = async () => {
+const loadConfigs = async () => {
   try {
-    const configs = await invoke<string[]>('list_configs')
-    configList.value = configs.map(name => ({ name }))
+    loading.value = true
+    const configs = await configApi.list()
+    configList.value = configs.map((name: string) => ({ name }))
   } catch (error) {
-    ElMessage.error('获取配置列表失败: ' + error)
+    console.error('加载配置列表失败:', error)
+    ElMessage.error('加载配置列表失败')
+  } finally {
+    loading.value = false
   }
 }
 
 const saveConfig = async () => {
   if (!configName.value) {
-    ElMessage.warning('请输入配置名称')
+    ElMessage.error('请输入配置名称')
     return
   }
   
   try {
-    await invoke('save_config', {
-      name: configName.value,
-      config: props.config
-    })
-    ElMessage.success('保存成功')
-    configName.value = ''
-    refreshConfigList()
+    loading.value = true
+    await configApi.save(configName.value, props.config)
+    ElMessage.success('保存配置成功')
+    emit('saved', configName.value)
+    visible.value = false
+    await loadConfigs()
   } catch (error) {
-    ElMessage.error('保存失败: ' + error)
+    console.error('保存配置失败:', error)
+    ElMessage.error('保存配置失败')
+  } finally {
+    loading.value = false
   }
 }
 
 const loadConfig = async (name: string) => {
   try {
-    const config = await invoke<Config>('load_config', { name })
+    loading.value = true
+    const config = await configApi.load(name)
     emit('config-loaded', config)
     visible.value = false
     ElMessage.success('加载成功')
   } catch (error) {
-    ElMessage.error('加载失败: ' + error)
+    console.error('加载配置失败:', error)
+    ElMessage.error('加载配置失败')
+  } finally {
+    loading.value = false
   }
 }
 
 const deleteConfig = async (name: string) => {
   try {
-    await invoke('delete_config', { name })
-    ElMessage.success('删除成功')
-    refreshConfigList()
+    loading.value = true
+    await configApi.delete(name)
+    ElMessage.success('删除配置成功')
+    await loadConfigs()
   } catch (error) {
-    ElMessage.error('删除失败: ' + error)
+    console.error('删除配置失败:', error)
+    ElMessage.error('删除配置失败')
+  } finally {
+    loading.value = false
   }
 }
 
 onMounted(() => {
-  refreshConfigList()
+  loadConfigs()
 })
 </script> 
