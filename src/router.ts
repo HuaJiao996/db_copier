@@ -1,24 +1,21 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
-import TaskManager from './pages/TaskManager.vue'
-import ConfigManager from './pages/ConfigManager.vue'
-import ConfigDetail from './pages/ConfigDetail.vue'
 
 const routes = [
   {
     path: '/',
     name: 'TaskManager',
-    component: TaskManager,
+    component: () => import('./pages/TaskManager.vue'),
   },
   {
     path: '/config',
     name: 'ConfigManager',
-    component: ConfigManager,
+    component: () => import('./pages/ConfigManager.vue'),
   },
   {
     path: '/config/new',
     name: 'CreateConfig',
-    component: ConfigDetail,
+    component: () => import('./pages/ConfigDetail.vue'),
     props: {
       isCreating: true,
     }
@@ -26,7 +23,7 @@ const routes = [
   {
     path: '/config/:name',
     name: 'EditConfig',
-    component: ConfigDetail,
+    component: () => import('./pages/ConfigDetail.vue'),
     props: (route: RouteLocationNormalized) => ({
       isCreating: false,
       configName: route.params.name
