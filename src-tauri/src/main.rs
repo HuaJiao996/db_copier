@@ -65,9 +65,6 @@ fn main() {
             commands::test_connection,
             commands::get_tables,
             commands::get_table_columns,
-            commands::get_table_info,
-            commands::sync_table_structure,
-            commands::compare_table_structure,
             
             // 任务相关命令
             commands::start_copy,

@@ -4,6 +4,7 @@
 pub mod commands;
 mod storage;
 pub mod command;
+pub mod db_copier;
 
 pub use commands::*;
 pub use storage::*;
@@ -20,4 +21,12 @@ pub mod store {
     use super::*;
     
     pub use storage::Storage;
+}
+
+// 表结构相关
+pub mod schema {
+    use super::*;
+    
+    pub use db_copier::TableInfo;
+    pub use db_copier::ColumnInfo;
 } 

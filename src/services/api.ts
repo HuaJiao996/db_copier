@@ -112,39 +112,13 @@ export const databaseApi = {
   },
   
   // 获取数据库表
-  getTables: (config: Config) => {
+  getTables: (config: DatabaseConfig) => {
     return invoke<string[]>('get_tables', { config });
   },
   
   // 获取表的列
-  getTableColumns: (config: Config, tableName: string) => {
+  getTableColumns: (config: DatabaseConfig, tableName: string) => {
     return invoke<string[]>('get_table_columns', { config, tableName });
   },
-  
-  // 同步表结构
-  syncTableStructure: (config: Config, tableName: string) => {
-    return invoke<string[]>('sync_table_structure', { config, tableName });
-  },
-  
-  /**
-   * 比较表结构差异
-   * @param currentColumns 当前列
-   * @param savedColumns 保存的列
-   * @returns 差异信息
-   */
-  compareTableStructure(currentColumns: string[], savedColumns: string[]): {
-    added: string[];
-    removed: string[];
-    hasChanges: boolean;
-  } {
-    const added = currentColumns.filter(col => !savedColumns.includes(col));
-    const removed = savedColumns.filter(col => !currentColumns.includes(col));
-    
-    return {
-      added,
-      removed,
-      hasChanges: added.length > 0 || removed.length > 0
-    };
-  }
 };
 

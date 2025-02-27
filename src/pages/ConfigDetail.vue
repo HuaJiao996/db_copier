@@ -33,7 +33,7 @@
       </el-form-item>
 
       <el-tabs v-model="activeTab" class="config-tabs">
-        <el-tab-pane :label="t('configDetail.tabs.connection')" name="connection">
+        <el-tab-pane lazy :label="t('configDetail.tabs.connection')" name="connection">
           <div class="database-section">
             <!-- 源数据库配置 -->
             <DatabaseConfig
@@ -49,14 +49,11 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane :label="t('configDetail.tabs.tables')" name="tables">
+        <el-tab-pane :label="t('configDetail.tabs.tables')" name="tables" lazy>
           <!-- 表配置 -->
           <TableConfig
-            ref="tableConfigRef"
-            :config="currentConfig"
-            :loading="loading"
-            v-model:selectedTables="currentConfig.tables"
-            @start-task="startTask"
+            v-model="currentConfig.tables"
+            :source-db="currentConfig.source_db"
           />
         </el-tab-pane>
       </el-tabs>
@@ -84,7 +81,6 @@ const props = defineProps<{
 
 const router = useRouter();
 const formRef = ref<FormInstance>();
-const tableConfigRef = ref<InstanceType<typeof TableConfig>>();
 const activeTab = ref('connection');
 const { isLoading: loading, runWithLoading } = useLoading();
 const { showSuccess, showError, showWarning } = useNotification();
@@ -135,10 +131,6 @@ watch(activeTab, async (newTab) => {
       showWarning(t('configDetail.messages.completeDbConfig'));
       activeTab.value = 'connection';
       return;
-    }
-    // 自动加载表结构
-    if (tableConfigRef.value) {
-      tableConfigRef.value.loadTables();
     }
   }
 });

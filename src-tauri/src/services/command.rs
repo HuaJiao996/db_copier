@@ -5,8 +5,6 @@ pub use crate::services::commands::connection::{
     test_connection,
     get_tables,
     get_table_columns,
-    get_table_info,
-    sync_table_structure,
 };
 
 pub use crate::services::commands::task::{

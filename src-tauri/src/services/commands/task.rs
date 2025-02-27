@@ -1,6 +1,7 @@
 // 任务相关命令
 
-use crate::database::{Config, TaskStatus, TaskState, Progress, DbCopier};
+use crate::database::{Config, TaskStatus, TaskState, Progress};
+use crate::db_copier::DbCopier;
 use crate::services::Storage;
 use crate::services::commands::types::TaskStore;
 use std::sync::Arc;

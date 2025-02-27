@@ -10,7 +10,10 @@ pub mod services;
 pub mod db {
     pub use crate::database::connection::*;
     pub use crate::database::model::*;
-    pub use crate::database::schema::*;
+}
+
+pub mod db_copier {
+    pub use crate::services::db_copier::*;
 }
 
 pub mod service {

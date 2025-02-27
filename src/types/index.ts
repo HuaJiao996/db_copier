@@ -31,6 +31,7 @@ export interface MaskRule {
 export interface ColumnConfig {
   name: string;
   mask_rule?: MaskRule;
+  ignore: boolean;
 }
 // 表配置
 export interface TableConfig {
@@ -38,7 +39,7 @@ export interface TableConfig {
   columns: ColumnConfig[];
   structure_only?: boolean;
   ignore_foreign_keys?: boolean;
-  last_updated?: string;
+  ignore: boolean;
 }
 
 // 完整配置

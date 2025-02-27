@@ -25,6 +25,7 @@ pub struct DatabaseConfig {
 pub struct ColumnConfig {
     pub name: String,
     pub mask_rule: Option<MaskRule>,
+    pub ignore: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -33,7 +34,7 @@ pub struct TableConfig {
     pub columns: Vec<ColumnConfig>,
     pub structure_only: bool,
     pub ignore_foreign_keys: bool,
-    pub last_updated: Option<String>,
+    pub ignore: bool,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]

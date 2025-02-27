@@ -1,18 +1,17 @@
 // 数据库相关功能的模块
 
 // 子模块
-mod db;
 mod models;
+mod db_client;
 
-pub use db::*;
+pub use db_client::*;
 pub use models::*;
 
 // 数据库连接器
 pub mod connection {
     use super::*;
     
-    pub use db::DbCopier;
-    pub use db::DbError;
+    pub use db_client::DbClient;
 }
 
 // 数据库模型
@@ -29,11 +28,3 @@ pub mod model {
     pub use models::TaskState;
     pub use models::Progress;
 }
-
-// 表结构相关
-pub mod schema {
-    use super::*;
-    
-    pub use db::TableInfo;
-    pub use db::ColumnInfo;
-} 
