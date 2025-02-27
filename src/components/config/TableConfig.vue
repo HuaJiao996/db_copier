@@ -181,7 +181,7 @@ const props = defineProps<{
   sourceDb: DatabaseConfig;
 }>();
 
-const tableConfig = defineModel<TableConfig[]>()
+const tableConfig = defineModel<TableConfig[]>({ required: true })
 
 const tableLoading = ref(false);
 const columnLoading = ref<{ [key: string]: boolean }>({});
@@ -206,9 +206,41 @@ const loadTables = async () => {
     console.log('开始加载表列表');
     const tables = await databaseApi.getTables(props.sourceDb);
     console.log('获取到表列表:', tables);
+
+    // 合并配置数据
+    const mergedTables: TableConfig[] = tables.map(table => {
+      const existingTable = tableConfig.value.find(t => t.name === table);
+      if (existingTable) {
+        return {
+          ...existingTable,
+          name: table,
+          columns: existingTable?.columns || [],
+          structure_only: existingTable?.structure_only || false,
+          ignore_foreign_keys: existingTable?.ignore_foreign_keys || false,
+          ignore: existingTable?.ignore || true,
+        };
+      }
+      tableStructureChanges.value.set(table, TableStructureChangeType.Added);
+      return {
+        name: table,
+        columns: [],
+        structure_only: false,
+        ignore_foreign_keys: false,
+        ignore: true,
+      };
+    });
+
+    mergedTables.forEach(table => {
+        const existingTable = tables.find(t => t === table.name);
+        if (!existingTable) {
+          tableStructureChanges.value.set(table.name, TableStructureChangeType.Removed);
+        }
+    });
+
+    tableConfig.value = mergedTables;
     
     // 恢复自动加载所有选中表的列
-    for (const tableName of tables) {
+    for (const tableName of tableConfig.value.filter(t => t.ignore === false).map(t => t.name)) {
       await loadTableColumns(tableName);
     }
   } catch (error) {
@@ -225,8 +257,9 @@ const loadTableColumns = async (tableName: string) => {
   try {
     columnLoading.value[tableName] = true;
     console.log('开始加载表列:', tableName);
-    const columns = await databaseApi.getTableColumns(props.sourceDb, tableName);
-    console.log('获取到表列:', columns);
+    // TODO: 从表结构变更记录中获取表列
+    // const columns = await databaseApi.getTableColumns(props.sourceDb, tableName);
+    // console.log('获取到表列:', columns);
     
   } catch (error) {
     console.error('加载表结构失败:', error);
