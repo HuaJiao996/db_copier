@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use serde::Serialize;
-use crate::database::{TaskStatus};
+use crate::database::TaskStatus;
 
 /// 任务存储，用于在内存中跟踪任务状态
 #[derive(Clone)]

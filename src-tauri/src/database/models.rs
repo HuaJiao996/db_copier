@@ -22,18 +22,22 @@ pub struct DatabaseConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ColumnConfig {
+    pub name: String,
+    pub mask_rules: Option<MaskRule>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TableConfig {
     pub name: String,
-    pub columns: Vec<String>,
-    pub mask_rules: Vec<MaskRule>,
+    pub columns: Vec<ColumnConfig>,
     pub structure_only: bool,
     pub ignore_foreign_keys: bool,
     pub last_updated: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub struct MaskRule {
-    pub column: String,
     pub rule_type: MaskRuleType,
     pub pattern: Option<String>,
 }
@@ -46,6 +50,12 @@ pub enum MaskRuleType {
     Fixed,
     #[serde(rename = "pattern")]
     Pattern,
+}
+
+impl Default for MaskRuleType {
+    fn default() -> Self {
+        Self::Hash
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

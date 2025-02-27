@@ -326,6 +326,7 @@ impl DbCopier {
         }
     }
 
+    #[allow(dead_code)]
     async fn execute_batch_insert(
         &self,
         table: &TableConfig,
@@ -339,7 +340,7 @@ impl DbCopier {
         let insert_sql = format!(
             "INSERT INTO {} ({}) VALUES {}",
             table.name,
-            table.columns.join(", "),
+            table.columns.iter().map(|c| c.name.clone()).collect::<Vec<String>>().join(", "),
             batch_values.join(", ")
         );
 
@@ -353,7 +354,7 @@ impl DbCopier {
 
         Ok(())
     }
-
+    #[allow(dead_code)]
     async fn copy_table_data_stream(&self, table: &TableConfig) -> Result<(), DbError> {
         const BATCH_SIZE: usize = 1000;
         let mut values: Vec<String> = Vec::new();
@@ -361,7 +362,7 @@ impl DbCopier {
         let mut value_count = 0;
 
         // 构建查询语句
-        let columns = table.columns.join(", ");
+        let columns = table.columns.iter().map(|c| c.name.clone()).collect::<Vec<String>>().join(", ");
         let select_sql = format!("SELECT {} FROM {}", columns, table.name);
 
         // 执行查询
@@ -384,7 +385,7 @@ impl DbCopier {
             let mut row_placeholders = Vec::new();
             for column in table.columns.iter() {
                 value_count += 1;
-                let value: String = row.get(column.as_str());
+                let value: String = row.get(column.name.as_str());
                 values.push(value);
                 row_placeholders.push(format!("${}", value_count));
             }
@@ -424,7 +425,7 @@ impl DbCopier {
         }
 
         // 使用流式处理复制数据
-        let columns = table.columns.join("\", \"");
+        let columns = table.columns.iter().map(|c| c.name.clone()).collect::<Vec<String>>().join("\", \"");
         let select_sql = format!("SELECT \"{}\" FROM \"{}\"", columns, table.name);
 
         // 执行查询并插入数据
@@ -448,7 +449,7 @@ impl DbCopier {
             for row in rows {
                 let mut row_values = Vec::new();
                 for column in &table.columns {
-                    let value: String = row.get(column.as_str());
+                    let value: String = row.get(column.name.as_str());
                     params.push(value);
                     row_values.push(format!("${}", param_count));
                     param_count += 1;

@@ -170,15 +170,11 @@ const importConfig = async () => {
 
     for (const filePath of files) {
       try {
-        // 读取并解析JSON文件
-        const config = await configApi.import(filePath);
-        const fileName = filePath.split(/[/\\]/).pop()?.replace('.json', '') || '';
-        
-        // 保存配置
-        await configApi.save(fileName, { ...config, name: fileName });
+        // 读取并解析JSON文件 保存配置
+        await configApi.import(filePath);
         
         success++;
-        messages.push(`成功导入配置: ${fileName}`);
+        messages.push(`成功导入配置: ${filePath}`);
       } catch (error) {
         failed++;
         messages.push(`导入失败 ${filePath}: ${error}`);

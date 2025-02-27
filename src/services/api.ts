@@ -4,7 +4,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { DatabaseConfig, SSHConfig, Task, Config, TaskStatus } from '@/types';
+import { DatabaseConfig, Config, TaskStatus } from '@/types';
 
 /**
  * 配置相关API
@@ -49,8 +49,8 @@ export const configApi = {
    * @param filePath 文件路径
    * @returns 导入的配置
    */
-  async import(filePath: string): Promise<Config> {
-    return await invoke<Config>('import_config', { filePath });
+  async import(filePath: string): Promise<void> {
+    await invoke<Config>('import_config', { filePath });
   },
 
   /**

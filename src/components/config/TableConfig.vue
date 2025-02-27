@@ -11,15 +11,6 @@
           <el-icon><Refresh /></el-icon>
           刷新表列表
         </el-button>
-        <el-button 
-          type="primary" 
-          size="small" 
-          @click="saveTableConfig"
-          :loading="loading"
-        >
-          <el-icon><Check /></el-icon>
-          保存配置
-        </el-button>
       </div>
     </div>
 
@@ -224,23 +215,13 @@
           </template>
         </el-table-column>
       </el-table>
-
-    <div class="action-bar" v-if="selectedTables.length > 0">
-      <el-button
-        type="primary"
-        :loading="loading"
-        @click="$emit('start-task')"
-      >
-        启动任务
-      </el-button>
-    </div>
   </el-form-item>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh, Check, Loading } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { Refresh, Loading } from '@element-plus/icons-vue';
 import { databaseApi } from '@/services/api';
 import { Config } from '@/types';
 
@@ -249,10 +230,6 @@ const props = defineProps<{
   loading: boolean;
 }>();
 
-const emit = defineEmits<{
-  'update:selectedTables': [tables: any[]],
-  'start-task': [],
-}>();
 
 const tableLoading = ref(false);
 const columnLoading = ref<{ [key: string]: boolean }>({});
@@ -474,7 +451,7 @@ const saveTableConfig = () => {
     ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
     last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
   }));
-  emit('update:selectedTables', selectedTablesConfig);
+  // emit('update:selectedTables', selectedTablesConfig);
   ElMessage.success('保存配置成功');
 };
 
@@ -491,7 +468,7 @@ const handleTableSelectionChange = (selection: TableRow[]) => {
     ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
     last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
   }));
-  emit('update:selectedTables', selectedTablesConfig);
+  // emit('update:selectedTables', selectedTablesConfig);
 };
 
 const handleColumnSelectionChange = (tableName: string, selection: TableSelection[]) => {
@@ -680,7 +657,7 @@ const updateTableConfig = () => {
   });
   
   // 更新父组件的选中状态
-  emit('update:selectedTables', selectedTablesConfig);
+  // emit('update:selectedTables', selectedTablesConfig);
 };
 
 // 监听选中表的变化

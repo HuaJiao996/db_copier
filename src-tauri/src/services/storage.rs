@@ -1,6 +1,6 @@
 use crate::database::{Config, TaskStatus};
-use rusqlite::{params};
 use std::path::PathBuf;
+use rusqlite::params;
 use tokio_rusqlite::Connection as AsyncConnection;
 use serde_json;
 use log::{info, error};

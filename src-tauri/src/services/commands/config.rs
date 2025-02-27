@@ -1,14 +1,12 @@
 // 配置相关命令
 
-use crate::database::{Config, MaskRule, TableConfig, DatabaseConfig, SSHConfig};
+use crate::database::{Config, DatabaseConfig};
 use crate::services::Storage;
 use crate::services::commands::types::ConfigSummary;
 use std::sync::Arc;
 use tauri::State;
 use log::{info, error};
 use std::fs;
-use serde::Deserialize;
-use chrono;
 
 /// 保存配置
 #[tauri::command]
@@ -70,48 +68,21 @@ pub async fn delete_config(
 #[tauri::command]
 pub async fn import_config(
     file_path: String,
-) -> Result<Config, String> {
+    storage: State<'_, Arc<Storage>>,
+) -> Result<(), String> {
     // 读取JSON文件
     let config_json = fs::read_to_string(file_path)
         .map_err(|e| format!("读取配置文件失败: {}", e))?;
 
-    // 尝试解析为旧格式
-    #[derive(Debug, Deserialize)]
-    struct OldTableConfig {
-        name: String,
-        columns: Vec<String>,
-        mask_rules: Vec<MaskRule>,
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct OldConfig {
-        source_db: DatabaseConfig,
-        target_db: DatabaseConfig,
-        tables: Vec<OldTableConfig>,
-    }
-
     // 尝试解析配置
     match serde_json::from_str::<Config>(&config_json) {
-        Ok(config) => Ok(config),
+        Ok(config) => {
+            storage.save_config(&config).await.map_err(|e| format!("保存配置失败: {}", e))?;
+            Ok(())
+        }
         Err(_) => {
-            // 尝试解析旧格式
-            let old_config: OldConfig = serde_json::from_str(&config_json)
-                .map_err(|e| format!("解析配置失败: {}", e))?;
-            
-            // 转换为新格式
-            Ok(Config {
-                name: "".to_string(),
-                source_db: old_config.source_db,
-                target_db: old_config.target_db,
-                tables: old_config.tables.into_iter().map(|t| TableConfig {
-                    name: t.name,
-                    columns: t.columns,
-                    mask_rules: t.mask_rules,
-                    structure_only: false,
-                    ignore_foreign_keys: false,
-                    last_updated: Some(chrono::Utc::now().to_rfc3339()),
-                }).collect(),
-            })
+            error!("解析配置文件失败: {}", config_json);
+            Err("解析配置文件失败".to_string())
         }
     }
 }
