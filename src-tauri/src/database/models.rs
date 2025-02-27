@@ -24,7 +24,7 @@ pub struct DatabaseConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ColumnConfig {
     pub name: String,
-    pub mask_rules: Option<MaskRule>,
+    pub mask_rule: Option<MaskRule>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -84,7 +84,7 @@ const saveConfig = async () => {
   
   try {
     loading.value = true
-    await configApi.save(configName.value, props.config)
+    await configApi.save(props.config)
     ElMessage.success('保存配置成功')
     emit('saved', configName.value)
     visible.value = false

@@ -6,8 +6,6 @@ import {
   Monitor,
   Setting,
 } from '@element-plus/icons-vue';
-
-// 移除内存监控相关代码
 </script>
 
 <template>

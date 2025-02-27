@@ -265,10 +265,13 @@ const addTask = (taskId: string) => {
   const newTask: TaskStatus = {
     id: taskId,
     status: 'pending',
-    start_time: undefined,
-    end_time: undefined,
-    message: undefined,
-    progress: undefined
+    start_time: '',
+    end_time: '',
+    progress: {
+      current: 0,
+      total: 0,
+      table_name: ''
+    }
   };
   tasks.value.push(newTask);
 };

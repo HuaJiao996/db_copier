@@ -70,7 +70,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import DatabaseConfig from '@/components/config/DatabaseConfig.vue';
 import TableConfig from '@/components/config/TableConfig.vue';
 import { useRouter } from 'vue-router';
-import type { Config, TableConfig as TableConfigType } from '@/types';
+import type { Config } from '@/types';
 import { configApi, taskApi } from '@/services/api';
 import { useLoading } from '@/hooks/useLoading';
 import { useNotification } from '@/hooks/useNotification';
@@ -110,8 +110,6 @@ const initConfig = (): Config => ({
 });
 
 const currentConfig = ref<Config>(initConfig());
-const enableSourceSSH = ref(false);
-const enableTargetSSH = ref(false);
 
 const rules = {
   name: [

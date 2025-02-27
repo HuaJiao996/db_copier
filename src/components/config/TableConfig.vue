@@ -443,14 +443,14 @@ const refreshTableColumns = async (tableName: string) => {
 };
 
 const saveTableConfig = () => {
-  const selectedTablesConfig = selectedTables.value.map(tableName => ({
-    name: tableName,
-    columns: selectedTableColumns.value[tableName] || [],
-    mask_rules: maskRules.value[tableName] || [],
-    structure_only: tableOptions.value[tableName]?.structureOnly || false,
-    ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
-    last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
-  }));
+  // const selectedTablesConfig = selectedTables.value.map(tableName => ({
+  //   name: tableName,
+  //   columns: selectedTableColumns.value[tableName] || [],
+  //   mask_rules: maskRules.value[tableName] || [],
+  //   structure_only: tableOptions.value[tableName]?.structureOnly || false,
+  //   ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
+  //   last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
+  // }));
   // emit('update:selectedTables', selectedTablesConfig);
   ElMessage.success('保存配置成功');
 };
@@ -460,14 +460,14 @@ const handleTableSelectionChange = (selection: TableRow[]) => {
   selectedTables.value = selection.map(item => item.name);
   
   // 更新父组件的选中状态
-  const selectedTablesConfig = selectedTables.value.map(tableName => ({
-    name: tableName,
-    columns: selectedTableColumns.value[tableName] || [],
-    mask_rules: maskRules.value[tableName] || [],
-    structure_only: tableOptions.value[tableName]?.structureOnly || false,
-    ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
-    last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
-  }));
+  // const selectedTablesConfig = selectedTables.value.map(tableName => ({
+  //   name: tableName,
+  //   columns: selectedTableColumns.value[tableName] || [],
+  //   mask_rules: maskRules.value[tableName] || [],
+  //   structure_only: tableOptions.value[tableName]?.structureOnly || false,
+  //   ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
+  //   last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
+  // }));
   // emit('update:selectedTables', selectedTablesConfig);
 };
 
@@ -487,17 +487,17 @@ const handleExpandChange = async (row: TableRow, expanded: boolean) => {
   }
 };
 
-const handleTableSelect = async (selection: TableRow[], row: TableRow) => {
-  if (selection.includes(row)) {
-    // 确保表选项已初始化
-    initTableOptions(row.name);
+// const handleTableSelect = async (selection: TableRow[], row: TableRow) => {
+//   if (selection.includes(row)) {
+//     // 确保表选项已初始化
+//     initTableOptions(row.name);
     
-    if (!tableColumns.value[row.name]) {
-      await loadTableColumns(row.name);
-    }
-  }
-  handleTableSelectionChange(selection);
-};
+//     if (!tableColumns.value[row.name]) {
+//       await loadTableColumns(row.name);
+//     }
+//   }
+//   handleTableSelectionChange(selection);
+// };
 
 const handleMaskRuleChange = (tableName: string, columnName: string, ruleType: string) => {
   const table = tableOptions.value[tableName];
@@ -627,34 +627,34 @@ const updateTableConfig = () => {
   console.log('更新表配置');
   
   // 确保所有选中的表都有对应的配置
-  const selectedTablesConfig = selectedTables.value.map(tableName => {
-    // 如果是字符串，转换为对象
-    if (typeof tableName === 'string') {
-      return {
-        name: tableName,
-        columns: selectedTableColumns.value[tableName] || [],
-        mask_rules: maskRules.value[tableName] || [],
-        structure_only: tableOptions.value[tableName]?.structureOnly || false,
-        ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
-        last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
-      };
-    }
+  // const selectedTablesConfig = selectedTables.value.map(tableName => {
+  //   // 如果是字符串，转换为对象
+  //   if (typeof tableName === 'string') {
+  //     return {
+  //       name: tableName,
+  //       columns: selectedTableColumns.value[tableName] || [],
+  //       mask_rules: maskRules.value[tableName] || [],
+  //       structure_only: tableOptions.value[tableName]?.structureOnly || false,
+  //       ignore_foreign_keys: tableOptions.value[tableName]?.ignoreForeignKeys || false,
+  //       last_updated: tableLastUpdated.value[tableName] || new Date().toISOString()
+  //     };
+  //   }
     
-    // 如果已经是对象，更新其属性
-    if (tableName && typeof tableName === 'object' && 'name' in tableName) {
-      const name = tableName.name;
-      return {
-        ...tableName,
-        columns: selectedTableColumns.value[name] || tableName.columns || [],
-        mask_rules: maskRules.value[name] || tableName.mask_rules || [],
-        structure_only: tableOptions.value[name]?.structureOnly || tableName.structure_only || false,
-        ignore_foreign_keys: tableOptions.value[name]?.ignoreForeignKeys || tableName.ignore_foreign_keys || false,
-        last_updated: tableLastUpdated.value[name] || tableName.last_updated || new Date().toISOString()
-      };
-    }
+  //   // 如果已经是对象，更新其属性
+  //   if (tableName && typeof tableName === 'object' && 'name' in tableName) {
+  //     const name = tableName.name;
+  //     return {
+  //       ...tableName,
+  //       columns: selectedTableColumns.value[name] || tableName.columns || [],
+  //       mask_rules: maskRules.value[name] || tableName.mask_rules || [],
+  //       structure_only: tableOptions.value[name]?.structureOnly || tableName.structure_only || false,
+  //       ignore_foreign_keys: tableOptions.value[name]?.ignoreForeignKeys || tableName.ignore_foreign_keys || false,
+  //       last_updated: tableLastUpdated.value[name] || tableName.last_updated || new Date().toISOString()
+  //     };
+  //   }
     
-    return tableName;
-  });
+  //   return tableName;
+  // });
   
   // 更新父组件的选中状态
   // emit('update:selectedTables', selectedTablesConfig);

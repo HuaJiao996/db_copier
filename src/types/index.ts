@@ -24,16 +24,18 @@ export interface SSHConfig {
 
 // 掩码规则
 export interface MaskRule {
-  column: string;
   rule_type: string;
   pattern?: string;
 }
 
+export interface ColumnConfig {
+  name: string;
+  mask_rule?: MaskRule;
+}
 // 表配置
 export interface TableConfig {
   name: string;
-  columns: string[];
-  mask_rules: MaskRule[];
+  columns: ColumnConfig[];
   structure_only?: boolean;
   ignore_foreign_keys?: boolean;
   last_updated?: string;
@@ -47,11 +49,16 @@ export interface Config {
   tables: TableConfig [];
 }
 
+export interface Progress { 
+  current: number;
+  total: number;
+  table_name?: string;
+}
 // 任务状态
 export interface TaskStatus {
   id: string;
   status: string;
-  progress: number;
+  progress: Progress;
   current_table?: string;
   current_operation?: string;
   error?: string;
@@ -59,6 +66,7 @@ export interface TaskStatus {
   end_time?: string;
   total_rows?: number;
   processed_rows?: number;
+  message?: string;
 }
 
 // 任务

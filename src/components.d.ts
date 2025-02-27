@@ -8,9 +8,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    BaseButton: typeof import('./components/common/BaseButton.vue')['default']
-    BaseCard: typeof import('./components/common/BaseCard.vue')['default']
-    BaseTable: typeof import('./components/common/BaseTable.vue')['default']
     ConfigList: typeof import('./components/config/ConfigList.vue')['default']
     ConfigManager: typeof import('./components/config/ConfigManager.vue')['default']
     DatabaseConfig: typeof import('./components/config/DatabaseConfig.vue')['default']
@@ -19,13 +16,11 @@ declare module 'vue' {
     ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
     ElCard: typeof import('element-plus/es')['ElCard']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
-    ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
     ElContainer: typeof import('element-plus/es')['ElContainer']
     ElDescriptions: typeof import('element-plus/es')['ElDescriptions']
     ElDescriptionsItem: typeof import('element-plus/es')['ElDescriptionsItem']
     ElDialog: typeof import('element-plus/es')['ElDialog']
     ElEmpty: typeof import('element-plus/es')['ElEmpty']
-    ElFooter: typeof import('element-plus/es')['ElFooter']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']
     ElIcon: typeof import('element-plus/es')['ElIcon']
@@ -45,10 +40,8 @@ declare module 'vue' {
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
-    Layout: typeof import('./components/layout/Layout.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    SSHConfig: typeof import('./components/config/SSHConfig.vue')['default']
     TableConfig: typeof import('./components/config/TableConfig.vue')['default']
     TaskStatusTag: typeof import('./components/status/TaskStatusTag.vue')['default']
   }

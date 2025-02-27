@@ -3,15 +3,15 @@
 </template>
 
 <script setup lang="ts">
-import type { TaskState } from '@/types'
+import type { TaskStatus } from '@/types'
 import { computed } from 'vue'
 
 const props = defineProps<{
-  status: TaskState
+  status: TaskStatus
 }>()
 
 const tagType = computed(() => {
-  switch (props.status) {
+  switch (props.status.status) {
     case 'pending':
       return 'info'
     case 'running':
@@ -26,7 +26,7 @@ const tagType = computed(() => {
 })
 
 const statusText = computed(() => {
-  switch (props.status) {
+  switch (props.status.status) {
     case 'pending':
       return '等待中'
     case 'running':
