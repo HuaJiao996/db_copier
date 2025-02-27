@@ -9,7 +9,7 @@
           :loading="tableLoading"
         >
           <el-icon><Refresh /></el-icon>
-          刷新表列表
+          {{ $t('tableConfig.refreshTableList') }}
         </el-button>
       </div>
     </div>
@@ -33,20 +33,20 @@
                 v-model="localTableOptions[row.name].structureOnly"
                 @change="() => updateTableOption(row.name, 'structureOnly', localTableOptions[row.name].structureOnly)"
               >
-                仅复制表结构
+                {{ $t('tableConfig.structureOnly') }}
               </el-checkbox>
               <el-checkbox 
                 v-model="localTableOptions[row.name].ignoreForeignKeys"
                 @change="() => updateTableOption(row.name, 'ignoreForeignKeys', localTableOptions[row.name].ignoreForeignKeys)"
               >
-                忽略外键关联
+                {{ $t('tableConfig.ignoreForeignKeys') }}
               </el-checkbox>
             </div>
             
             <!-- 表结构变更提示 -->
             <div v-if="row.hasChanges" class="structure-changes-alert">
               <el-alert
-                title="表结构已变更"
+                :title="$t('tableConfig.structureChanged')"
                 type="warning"
                 :closable="false"
                 show-icon
@@ -54,7 +54,7 @@
                 <template #default>
                   <div class="structure-changes">
                     <div v-if="tableStructureChanges[row.name].added.length > 0">
-                      <strong>新增列:</strong> 
+                      <strong>{{ $t('tableConfig.newColumns') }}:</strong> 
                       <el-tag 
                         v-for="col in tableStructureChanges[row.name].added" 
                         :key="col" 
@@ -66,7 +66,7 @@
                       </el-tag>
                     </div>
                     <div v-if="tableStructureChanges[row.name].removed.length > 0">
-                      <strong>移除列:</strong> 
+                      <strong>{{ $t('tableConfig.removedColumns') }}:</strong> 
                       <el-tag 
                         v-for="col in tableStructureChanges[row.name].removed" 
                         :key="col" 
@@ -83,7 +83,7 @@
                         size="small" 
                         @click="updateTableStructure(row.name)"
                       >
-                        更新表结构
+                        {{ $t('tableConfig.updateStructure') }}
                       </el-button>
                     </div>
                   </div>
@@ -92,10 +92,10 @@
             </div>
             
             <div class="column-header">
-              <span>列配置</span>
+              <span>{{ $t('tableConfig.columns.columnName') }}</span>
               <div>
                 <span v-if="tableLastUpdated[row.name]" class="last-updated">
-                  上次更新: {{ formatDate(tableLastUpdated[row.name]) }}
+                  {{ $t('tableConfig.lastUpdated') }}: {{ formatDate(tableLastUpdated[row.name]) }}
                 </span>
                 <el-button 
                   type="primary" 
@@ -105,7 +105,7 @@
                   :loading="columnLoading[row.name]"
                 >
                   <el-icon><Refresh /></el-icon>
-                  刷新列
+                  {{ $t('tableConfig.refreshColumns') }}
                 </el-button>
               </div>
             </div>
@@ -131,43 +131,43 @@
                 :reserve-selection="true"
               />
               <el-table-column
-                label="列名"
+                :label="$t('tableConfig.columns.columnName')"
                 prop="name"
                 min-width="180"
               >
                 <template #default="{ row: column }">
                   <div class="column-name-cell">
                     {{ column.name }}
-                    <el-tag v-if="column.isNew" type="success" size="small" effect="plain">新</el-tag>
+                    <el-tag v-if="column.isNew" type="success" size="small" effect="plain">{{ $t('tableConfig.new') }}</el-tag>
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="掩码规则" min-width="300">
+              <el-table-column :label="$t('tableConfig.columns.maskRule')" min-width="300">
                 <template #default="{ row: column }">
                   <div class="mask-rule-cell" v-if="column.selected">
                     <el-select
                       v-model="column.maskRule.rule_type"
-                      placeholder="选择规则"
+                      :placeholder="$t('tableConfig.selectRule')"
                       style="width: 120px"
                       size="small"
                       @change="(val) => handleMaskRuleChange(row.name, column.name, val)"
                     >
-                      <el-option label="无" value="" />
-                      <el-option label="哈希" value="hash" />
-                      <el-option label="固定值" value="fixed" />
-                      <el-option label="模式" value="pattern" />
+                      <el-option :label="$t('tableConfig.rules.none')" value="" />
+                      <el-option :label="$t('tableConfig.rules.hash')" value="hash" />
+                      <el-option :label="$t('tableConfig.rules.fixed')" value="fixed" />
+                      <el-option :label="$t('tableConfig.rules.pattern')" value="pattern" />
                     </el-select>
                     
                     <el-input
                       v-if="column.maskRule?.rule_type && column.maskRule.rule_type !== 'hash'"
                       v-model="column.maskRule.pattern"
-                      placeholder="请输入替换值或模式"
+                      :placeholder="$t('tableConfig.enterReplacement')"
                       style="width: 200px"
                       size="small"
                       @input="(val) => handleMaskRulePatternChange(row.name, column.name, val)"
                     />
                     <span v-else-if="column.maskRule?.rule_type === 'hash'" class="text-muted">
-                      使用哈希加密
+                      {{ $t('tableConfig.useHash') }}
                     </span>
                   </div>
                 </template>
@@ -175,7 +175,7 @@
             </el-table>
             <div v-else class="loading-placeholder">
               <el-icon class="is-loading"><Loading /></el-icon>
-              加载列信息...
+              {{ $t('tableConfig.loadingColumnInfo') }}...
             </div>
           </div>
           </template>
@@ -183,32 +183,32 @@
         
       <el-table-column type="selection" width="55" :reserve-selection="true" />
       
-      <el-table-column label="表名" min-width="200">
+      <el-table-column :label="$t('tableConfig.columns.tableName')" min-width="200">
           <template #default="{ row }">
           <div class="table-name-cell">
             <span>{{ row.name }}</span>
             <el-tag size="small" type="info" class="table-tag">
-              {{ row.name.includes('_') ? row.name.split('_')[0] : '默认' }}
+              {{ row.name.includes('_') ? row.name.split('_')[0] : $t('tableConfig.default') }}
             </el-tag>
             <div class="table-status">
               <el-tag 
                 size="small" 
                 :type="selectedTableColumns[row.name]?.length ? 'success' : 'info'"
               >
-                {{ selectedTableColumns[row.name]?.length || 0 }} 列
+                {{ $t('tableConfig.columnCount', { count: selectedTableColumns[row.name]?.length || 0 }) }}
               </el-tag>
               <el-tag 
                 size="small" 
                 :type="getMaskRuleCount(row.name) > 0 ? 'warning' : 'info'"
               >
-                {{ getMaskRuleCount(row.name) }} 规则
+                {{ $t('tableConfig.ruleCount', { count: getMaskRuleCount(row.name) }) }}
               </el-tag>
               <el-tag
                 v-if="row.hasChanges"
                 size="small"
                 type="warning"
               >
-                结构已变更
+                {{ $t('tableConfig.structureChanged') }}
               </el-tag>
             </div>
           </div>
@@ -224,6 +224,9 @@ import { ElMessage } from 'element-plus';
 import { Refresh, Loading } from '@element-plus/icons-vue';
 import { databaseApi } from '@/services/api';
 import { Config } from '@/types';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   config: Config;

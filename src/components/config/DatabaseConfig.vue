@@ -1,13 +1,13 @@
 <template>
   <div class="database-config">
-    <h3>{{ type === 'source' ? '源数据库' : '目标数据库' }}</h3>
+    <h3>{{ type === 'source' ? t('databaseConfig.source') : t('databaseConfig.target') }}</h3>
     
     <!-- 数据库配置 -->
-    <el-form-item label="主机地址" required>
-      <el-input v-model="dbConfig.host" placeholder="例如：localhost" />
+    <el-form-item :label="t('databaseConfig.host')" required>
+      <el-input v-model="dbConfig.host" :placeholder="t('databaseConfig.hostPlaceholder')" />
     </el-form-item>
 
-    <el-form-item label="端口" required>
+    <el-form-item :label="t('databaseConfig.port')" required>
       <el-input-number 
         v-model="dbConfig.port" 
         :min="1" 
@@ -17,23 +17,23 @@
       />
     </el-form-item>
 
-    <el-form-item label="数据库名" required>
+    <el-form-item :label="t('databaseConfig.database')" required>
       <el-input v-model="dbConfig.database" />
     </el-form-item>
 
-    <el-form-item label="用户名" required>
+    <el-form-item :label="t('databaseConfig.username')" required>
       <el-input v-model="dbConfig.username" />
     </el-form-item>
 
-    <el-form-item label="密码" required>
+    <el-form-item :label="t('databaseConfig.password')" required>
       <el-input v-model="dbConfig.password" type="password" show-password />
     </el-form-item>
 
-    <el-form-item label="SSL模式">
+    <el-form-item :label="t('databaseConfig.sslMode')">
       <el-select v-model="dbConfig.ssl_mode" style="width: 100%">
-        <el-option label="首选 (prefer)" value="prefer" />
-        <el-option label="要求 (require)" value="require" />
-        <el-option label="禁用 (disable)" value="disable" />
+        <el-option :label="t('databaseConfig.sslModes.prefer')" value="prefer" />
+        <el-option :label="t('databaseConfig.sslModes.require')" value="require" />
+        <el-option :label="t('databaseConfig.sslModes.disable')" value="disable" />
       </el-select>
     </el-form-item>
 
@@ -44,22 +44,22 @@
         :loading="testingConnection" 
         @click="testConnection"
       >
-        测试连接
+        {{ t('databaseConfig.testConnection') }}
       </el-button>
     </el-form-item>
 
     <!-- SSH 配置 -->
     <div class="ssh-config">
       <div class="ssh-header">
-        <el-checkbox v-model="enableSSHModel">启用 SSH 隧道</el-checkbox>
+        <el-checkbox v-model="enableSSHModel">{{ t('databaseConfig.enableSSH') }}</el-checkbox>
       </div>
 
       <div v-if="enableSSHModel" class="ssh-form">
-        <el-form-item label="SSH 主机">
-          <el-input v-model="dbConfig.ssh_config!.host" placeholder="SSH 服务器地址" />
+        <el-form-item :label="t('databaseConfig.sshHost')">
+          <el-input v-model="dbConfig.ssh_config!.host" :placeholder="t('databaseConfig.sshHostPlaceholder')" />
         </el-form-item>
 
-        <el-form-item label="SSH 端口">
+        <el-form-item :label="t('databaseConfig.sshPort')">
           <el-input-number 
             v-model="dbConfig.ssh_config!.port" 
             :min="1" 
@@ -69,19 +69,19 @@
           />
         </el-form-item>
 
-        <el-form-item label="SSH 用户名">
+        <el-form-item :label="t('databaseConfig.sshUsername')">
           <el-input v-model="dbConfig.ssh_config!.username" />
         </el-form-item>
 
-        <el-form-item label="认证方式">
+        <el-form-item :label="t('databaseConfig.authType')">
           <el-radio-group v-model="dbConfig.ssh_config!.auth_type">
-            <el-radio label="password">密码</el-radio>
-            <el-radio label="private_key">密钥</el-radio>
+            <el-radio label="password">{{ t('databaseConfig.authTypes.password') }}</el-radio>
+            <el-radio label="private_key">{{ t('databaseConfig.authTypes.privateKey') }}</el-radio>
           </el-radio-group>
         </el-form-item>
 
         <el-form-item 
-          :label="dbConfig.ssh_config!.auth_type === 'password' ? '密码' : '私钥'"
+          :label="dbConfig.ssh_config!.auth_type === 'password' ? t('databaseConfig.password') : t('databaseConfig.privateKey')"
         >
           <el-input 
             v-if="dbConfig.ssh_config!.auth_type === 'password'"
@@ -92,12 +92,12 @@
           <div v-else class="key-select">
             <el-input
               v-model="dbConfig.ssh_config!.private_key_path"
-              placeholder="请选择私钥文件"
+              :placeholder="t('databaseConfig.selectPrivateKeyPlaceholder')"
               readonly
             >
               <template #append>
                 <el-button @click="selectPrivateKey">
-                  选择文件
+                  {{ t('databaseConfig.selectFile') }}
                 </el-button>
               </template>
             </el-input>
@@ -114,10 +114,13 @@ import type { DatabaseConfig } from '@/types';
 import { databaseApi } from '@/services/api';
 import { ElMessage } from 'element-plus';
 import { open } from "@tauri-apps/plugin-dialog";
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   type: 'source' | 'target';
 }>();
+
+const { t } = useI18n();
 
 // 使用defineModel来简化v-model绑定
 const dbConfig = defineModel<DatabaseConfig>({ 
@@ -159,19 +162,19 @@ const testConnection = async () => {
   try {
     // 验证必填字段
     if (!dbConfig.value.host) {
-      ElMessage.error('主机地址不能为空');
+      ElMessage.error(t('databaseConfig.errors.hostRequired'));
       testingConnection.value = false;
       return;
     }
     
     if (!dbConfig.value.database) {
-      ElMessage.error('数据库名不能为空');
+      ElMessage.error(t('databaseConfig.errors.databaseRequired'));
       testingConnection.value = false;
       return;
     }
     
     if (!dbConfig.value.username) {
-      ElMessage.error('用户名不能为空');
+      ElMessage.error(t('databaseConfig.errors.usernameRequired'));
       testingConnection.value = false;
       return;
     }
@@ -180,10 +183,10 @@ const testConnection = async () => {
     
     // 调用测试连接API
     const result = await databaseApi.testConnection(dbConfig.value);
-    ElMessage.success(`连接成功: ${result}`);
+    ElMessage.success(t('databaseConfig.messages.connectionSuccess', { message: result }));
   } catch (error) {
     console.error(`${props.type === 'source' ? '源' : '目标'}数据库连接失败:`, error);
-    ElMessage.error(`连接失败: ${error}`);
+    ElMessage.error(t('databaseConfig.errors.connectionFailed', { error }));
   } finally {
     testingConnection.value = false;
   }
@@ -205,7 +208,7 @@ const selectPrivateKey = async () => {
     }
   } catch (error) {
     console.error('选择私钥文件失败:', error);
-    ElMessage.error('选择私钥文件失败');
+    ElMessage.error(t('databaseConfig.errors.selectKeyFailed'));
   }
 };
 

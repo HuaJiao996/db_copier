@@ -1,15 +1,15 @@
 <template>
   <div class="task-manager">
     <div class="header">
-      <h2>任务管理</h2>
+      <h2>{{ $t('taskManager.title') }}</h2>
       <el-button-group>
         <el-button type="primary" @click="refreshTasks">
           <el-icon><Refresh /></el-icon>
-          刷新
+          {{ $t('taskManager.refresh') }}
         </el-button>
         <el-button type="primary">
           <el-icon><Download /></el-icon>
-          导出记录
+          {{ $t('taskManager.exportRecords') }}
         </el-button>
       </el-button-group>
     </div>
@@ -18,32 +18,32 @@
       <template #header>
         <div class="card-header">
           <div class="header-left">
-            <span>任务列表</span>
+            <span>{{ $t('taskManager.taskList') }}</span>
             <el-tag 
               v-if="runningCount > 0" 
               type="success" 
               effect="plain" 
               size="small"
             >
-              {{ runningCount }} 个运行中
+              {{ $t('taskManager.runningCount', { count: runningCount }) }}
             </el-tag>
           </div>
           <div class="filter-section">
             <el-select
               v-model="filterStatus"
-              placeholder="状态筛选"
+              :placeholder="$t('taskManager.statusFilter')"
               clearable
               size="small"
               style="width: 120px"
             >
-              <el-option label="运行中" value="running" />
-              <el-option label="等待中" value="pending" />
-              <el-option label="已完成" value="completed" />
-              <el-option label="失败" value="failed" />
+              <el-option :label="$t('taskManager.status.running')" value="running" />
+              <el-option :label="$t('taskManager.status.pending')" value="pending" />
+              <el-option :label="$t('taskManager.status.completed')" value="completed" />
+              <el-option :label="$t('taskManager.status.failed')" value="failed" />
             </el-select>
             <el-input
               v-model="searchKeyword"
-              placeholder="搜索任务ID"
+              :placeholder="$t('taskManager.searchTaskId')"
               clearable
               size="small"
               style="width: 200px"
@@ -57,15 +57,15 @@
       </template>
 
       <el-table :data="filteredTasks" style="width: 100%">
-        <el-table-column prop="id" label="任务ID" width="180" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="id" :label="$t('taskManager.columns.taskId')" width="180" />
+        <el-table-column prop="status" :label="$t('taskManager.columns.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
-              {{ getStatusText(row.status) }}
+              {{ $t(`taskManager.status.${row.status}`) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="progress" label="进度" width="200">
+        <el-table-column prop="progress" :label="$t('taskManager.columns.progress')" width="200">
           <template #default="{ row }">
             <div v-if="row.progress">
               <el-progress 
@@ -80,10 +80,10 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="start_time" label="开始时间" width="180" />
-        <el-table-column prop="end_time" label="结束时间" width="180" />
-        <el-table-column prop="message" label="消息" show-overflow-tooltip />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column prop="start_time" :label="$t('taskManager.columns.startTime')" width="180" />
+        <el-table-column prop="end_time" :label="$t('taskManager.columns.endTime')" width="180" />
+        <el-table-column prop="message" :label="$t('taskManager.columns.message')" show-overflow-tooltip />
+        <el-table-column :label="$t('taskManager.columns.actions')" width="120" fixed="right">
           <template #default="{ row }">
             <el-button 
               link 
@@ -91,7 +91,7 @@
               :disabled="row.status === 'running'"
               @click="showTaskDetail(row)"
             >
-              详情
+              {{ $t('taskManager.details') }}
             </el-button>
           </template>
         </el-table-column>
@@ -113,30 +113,30 @@
     <!-- 任务详情对话框 -->
     <el-dialog
       v-model="detailDialogVisible"
-      title="任务详情"
+      :title="$t('taskManager.taskDetails')"
       width="60%"
     >
       <div v-if="selectedTask" class="task-detail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="任务ID">{{ selectedTask.id }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
+          <el-descriptions-item :label="$t('taskManager.columns.taskId')">{{ selectedTask.id }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('taskManager.columns.status')">
             <el-tag :type="getStatusType(selectedTask.status)">
-              {{ getStatusText(selectedTask.status) }}
+              {{ $t(`taskManager.status.${selectedTask.status}`) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="开始时间">{{ selectedTask.start_time || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="结束时间">{{ selectedTask.end_time || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="消息" :span="2">{{ selectedTask.message || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('taskManager.columns.startTime')">{{ selectedTask.start_time || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('taskManager.columns.endTime')">{{ selectedTask.end_time || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('taskManager.columns.message')" :span="2">{{ selectedTask.message || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <div v-if="selectedTask.progress" class="task-progress">
-          <h4>复制进度</h4>
+          <h4>{{ $t('taskManager.copyProgress') }}</h4>
           <el-progress 
             :percentage="Math.floor((selectedTask.progress.current / selectedTask.progress.total) * 100)"
             :status="selectedTask.status === 'failed' ? 'exception' : selectedTask.status === 'completed' ? 'success' : ''"
           />
           <p class="progress-info">
-            当前表：{{ selectedTask.progress.table_name }}
+            {{ $t('taskManager.currentTable') }}: {{ selectedTask.progress.table_name }}
             ({{ selectedTask.progress.current }}/{{ selectedTask.progress.total }})
           </p>
         </div>
@@ -151,6 +151,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Download, Refresh, Search } from '@element-plus/icons-vue';
 import type { TaskStatus } from '@/types';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
 const loading = ref(false);
 const tasks = ref<TaskStatus[]>([]);
@@ -162,6 +163,7 @@ const filterStatus = ref('');
 const searchKeyword = ref('');
 let refreshInterval: number | null = null;
 const route = useRoute();
+const i18n = useI18n();
 
 // 计算运行中的任务数量
 const runningCount = computed(() => {
@@ -225,13 +227,7 @@ const getStatusType = (status: string) => {
 
 // 获取状态文本
 const getStatusText = (status: string) => {
-  switch (status) {
-    case 'running': return '运行中';
-    case 'completed': return '已完成';
-    case 'failed': return '失败';
-    case 'pending': return '等待中';
-    default: return '未知';
-  }
+  return i18n.t(`taskManager.status.${status}`);
 };
 
 // 刷新任务列表

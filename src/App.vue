@@ -1,32 +1,47 @@
 <script setup lang="ts">
 import { RouterView } from "vue-router";
 import { ElConfigProvider } from "element-plus";
-import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import enUs from 'element-plus/es/locale/lang/en'
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import LanguageSwitcher from './components/LanguageSwitcher.vue';
 import {
   Monitor,
   Setting,
 } from '@element-plus/icons-vue';
+
+// 使用i18n
+const { locale } = useI18n();
+
+// 根据当前语言选择Element Plus的语言包
+const elementLocale = computed(() => {
+  return locale.value === 'zh-CN' ? zhCn : enUs;
+});
 </script>
 
 <template>
-  <el-config-provider :locale="zhCn">
+  <el-config-provider :locale="elementLocale">
     <div class="app-wrapper">
       <!-- 顶部导航栏 -->
-      <el-menu
-        mode="horizontal"
-        :router="true"
-        class="top-menu"
-      >
-        <el-menu-item index="1" route="/">
-          <el-icon><Monitor /></el-icon>
-          <span>任务管理</span>
-        </el-menu-item>
-        <el-menu-item index="2" route="/config">
-          <el-icon><Setting /></el-icon>
-          <span>配置管理</span>
-        </el-menu-item>
-      </el-menu>
-
+       <div class="top-menu">
+          <el-menu
+            mode="horizontal"
+            :router="true"
+            class="top-menu-container"
+          >
+          <el-menu-item index="1" route="/">
+            <el-icon><Monitor /></el-icon>
+            <span>{{ $t('nav.taskManager') }}</span>
+          </el-menu-item>
+          <el-menu-item index="2" route="/config">
+            <el-icon><Setting /></el-icon>
+            <span>{{ $t('nav.configManager') }}</span>
+          </el-menu-item>
+          </el-menu>
+          <LanguageSwitcher />
+      </div>
+      
       <!-- 主要内容区 -->
       <el-container class="main-container">
         <el-main class="main-content">
@@ -85,9 +100,17 @@ body {
 }
 
 .top-menu {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.top-menu-container {
+  width: 100%;
   border-bottom: 1px solid var(--el-border-color-light);
   padding: 0 20px;
 }
+
 
 .main-container {
   flex: 1;

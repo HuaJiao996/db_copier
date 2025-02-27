@@ -5,10 +5,13 @@
 <script setup lang="ts">
 import type { TaskStatus } from '@/types'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   status: TaskStatus
 }>()
+
+const { t } = useI18n()
 
 const tagType = computed(() => {
   switch (props.status.status) {
@@ -26,17 +29,6 @@ const tagType = computed(() => {
 })
 
 const statusText = computed(() => {
-  switch (props.status.status) {
-    case 'pending':
-      return '等待中'
-    case 'running':
-      return '运行中'
-    case 'completed':
-      return '已完成'
-    case 'failed':
-      return '失败'
-    default:
-      return '未知'
-  }
+  return t(`taskManager.status.${props.status.status}`)
 })
 </script> 

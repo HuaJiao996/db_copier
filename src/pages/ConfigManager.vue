@@ -7,8 +7,10 @@ import { configApi, taskApi } from '@/services/api';
 import { useLoading } from '@/hooks/useLoading';
 import { useNotification } from '@/hooks/useNotification';
 import { ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 
 const router = useRouter();
+const { t } = useI18n();
 const { isLoading: loading, runWithLoading } = useLoading();
 const { showSuccess, showError, showWarning, showConfirm, showPrompt } = useNotification();
 const configList = ref<{ name: string }[]>([]);
@@ -21,7 +23,7 @@ const loadConfigs = async () => {
       const configs = await configApi.list();
       configList.value = configs.map(name => ({ name }));
     } catch (error) {
-      showError('加载配置失败: ' + error);
+      showError(t('configManager.errors.loadFailed') + ': ' + error);
     }
   });
 };
@@ -36,69 +38,71 @@ const handleConfigClick = (row: { name: string }) => {
 
 const handleConfigDelete = async (name: string) => {
   try {
-    const confirmed = await showConfirm('提示', '确定要删除该配置吗？', { type: 'warning' });
+    const confirmed = await showConfirm(
+      t('common.tips'),
+      t('configManager.confirmDelete'),
+      { type: 'warning' }
+    );
     if (!confirmed) return;
     
     await configApi.delete(name);
-    showSuccess('删除配置成功');
+    showSuccess(t('configManager.messages.deleteSuccess'));
     await loadConfigs();
   } catch (error) {
-    showError('删除配置失败: ' + error);
+    showError(t('configManager.errors.deleteFailed') + ': ' + error);
   }
 };
 
 const startTask = async (name: string) => {
   await runWithLoading(async () => {
     try {
-      // 先加载配置
       const config = await configApi.load(name);
-      // 启动任务
       const taskId = await taskApi.start(config);
-      showSuccess('任务创建成功');
-      // 跳转到任务监控页面，并传递任务ID
+      showSuccess(t('configManager.messages.taskCreated'));
       router.push({
         path: '/',
         query: { taskId }
       });
     } catch (error) {
-      showError('创建任务失败: ' + error);
+      showError(t('configManager.errors.taskCreateFailed') + ': ' + error);
     }
   });
 };
 
 const copyConfig = async (name: string) => {
   try {
-    // 弹出输入框让用户输入新配置名称
-    const newName = await showPrompt('复制配置', '请输入新配置名称', {
-      inputPattern: /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,50}$/,
-      inputErrorMessage: '配置名称必须是2-50个字符（支持中文、字母、数字、下划线）'
-    });
+    const newName = await showPrompt(
+      t('configManager.copyConfig'),
+      t('configManager.enterNewName'),
+      {
+        inputPattern: /^[a-zA-Z0-9_\u4e00-\u9fa5]{2,50}$/,
+        inputErrorMessage: t('configManager.errors.invalidName')
+      }
+    );
     
     if (newName) {
       await runWithLoading(async () => {
-        // 加载原配置
         const config = await configApi.load(name);
-        // 保存为新配置
         await configApi.save(config);
-        showSuccess('复制配置成功');
+        showSuccess(t('configManager.messages.copySuccess'));
         await loadConfigs();
       });
     }
   } catch (error) {
-    showError('复制配置失败: ' + error);
+    showError(t('configManager.errors.copyFailed') + ': ' + error);
   }
 };
 
 const startBatchTasks = async () => {
   if (selectedConfigs.value.length === 0) {
-    showWarning('请选择要启动的配置');
+    showWarning(t('configManager.errors.noConfigSelected'));
     return;
   }
 
   try {
     const confirmed = await showConfirm(
-      '批量启动任务',
-      `确定要启动选中的 ${selectedConfigs.value.length} 个配置吗？`,
+      t('configManager.batchStart'),
+      t('configManager.confirmBatchStart', { count: selectedConfigs.value.length }),
       { type: 'warning' }
     );
 
@@ -126,8 +130,7 @@ const startBatchTasks = async () => {
       ).length;
 
       if (succeeded.length > 0) {
-        showSuccess(`成功启动 ${succeeded.length} 个任务`);
-        // 跳转到任务监控页面，并传递所有成功的任务ID
+        showSuccess(t('configManager.messages.batchStartSuccess', { count: succeeded.length }));
         router.push({
           path: '/',
           query: { 
@@ -136,11 +139,11 @@ const startBatchTasks = async () => {
         });
       }
       if (failed > 0) {
-        showError(`${failed} 个任务启动失败`);
+        showError(t('configManager.errors.batchStartPartialFailed', { count: failed }));
       }
     });
   } catch (error) {
-    showError('批量启动任务失败');
+    showError(t('configManager.errors.batchStartFailed'));
   }
 };
 
@@ -150,7 +153,6 @@ const handleSelectionChange = (selection: { name: string }[]) => {
 
 const importConfig = async () => {
   try {
-    // 打开文件选择对话框
     const selected = await open({
       multiple: true,
       filters: [{
@@ -170,27 +172,28 @@ const importConfig = async () => {
 
     for (const filePath of files) {
       try {
-        // 读取并解析JSON文件 保存配置
         await configApi.import(filePath);
-        
         success++;
-        messages.push(`成功导入配置: ${filePath}`);
+        messages.push(t('configManager.messages.importSuccess', { path: filePath }));
       } catch (error) {
         failed++;
-        messages.push(`导入失败 ${filePath}: ${error}`);
+        messages.push(t('configManager.errors.importFailed', { path: filePath, error }));
       }
     }
 
-    // 显示导入结果
     await ElMessageBox.alert(
-      `导入完成。成功: ${success}, 失败: ${failed}\n${messages.join('\n')}`,
-      '导入结果',
+      t('configManager.messages.importComplete', {
+        success,
+        failed,
+        details: messages.join('\n')
+      }),
+      t('configManager.importResult'),
       {
-        confirmButtonText: '确定'
+        confirmButtonText: t('common.confirm')
       }
     );
   } catch (error) {
-    showError('导入失败: ' + error);
+    showError(t('configManager.errors.importFailed', { error }));
   } finally {
     migrateLoading.value = false;
   }
@@ -204,11 +207,11 @@ onMounted(() => {
 <template>
   <div class="config-manager">
     <div class="header">
-      <h2>配置管理</h2>
+      <h2>{{ $t('configManager.title') }}</h2>
       <el-button-group>
         <el-button type="primary" @click="createConfig">
           <el-icon><Plus /></el-icon>
-          新建配置
+          {{ $t('configManager.newConfig') }}
         </el-button>
         <el-button 
           type="success" 
@@ -216,7 +219,7 @@ onMounted(() => {
           :disabled="selectedConfigs.length === 0"
         >
           <el-icon><CaretRight /></el-icon>
-          批量启动
+          {{ $t('configManager.batchStart') }}
         </el-button>
         <el-button 
           type="warning" 
@@ -224,7 +227,7 @@ onMounted(() => {
           :loading="migrateLoading"
         >
           <el-icon><Upload /></el-icon>
-          导入配置
+          {{ $t('configManager.importConfig') }}
         </el-button>
       </el-button-group>
     </div>
@@ -232,9 +235,9 @@ onMounted(() => {
     <el-card class="config-list" v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span>配置列表</span>
+          <span>{{ $t('configManager.configList') }}</span>
           <span class="selection-info" v-if="selectedConfigs.length > 0">
-            已选择 {{ selectedConfigs.length }} 项
+            {{ $t('configManager.selectedCount', { count: selectedConfigs.length }) }}
           </span>
         </div>
       </template>
@@ -246,8 +249,8 @@ onMounted(() => {
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="name" label="配置名称" />
-        <el-table-column label="操作" width="360" align="right">
+        <el-table-column prop="name" :label="$t('configManager.columns.name')" />
+        <el-table-column :label="$t('configManager.columns.actions')" width="360" align="right">
           <template #default="{ row }">
             <el-button 
               link 
@@ -255,7 +258,7 @@ onMounted(() => {
               @click.stop="handleConfigClick(row)"
             >
               <el-icon><Document /></el-icon>
-              编辑
+              {{ $t('common.edit') }}
             </el-button>
             <el-button 
               link 
@@ -263,7 +266,7 @@ onMounted(() => {
               @click.stop="copyConfig(row.name)"
             >
               <el-icon><DocumentCopy /></el-icon>
-              复制
+              {{ $t('common.copy') }}
             </el-button>
             <el-button 
               link 
@@ -271,14 +274,14 @@ onMounted(() => {
               @click.stop="startTask(row.name)"
             >
               <el-icon><CaretRight /></el-icon>
-              启动任务
+              {{ $t('configManager.startTask') }}
             </el-button>
             <el-button 
               link 
               type="danger" 
               @click.stop="handleConfigDelete(row.name)"
             >
-              删除
+              {{ $t('common.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -286,11 +289,11 @@ onMounted(() => {
 
       <el-empty
         v-if="configList.length === 0"
-        description="暂无配置"
+        :description="$t('configManager.noConfig')"
       >
         <el-button type="primary" @click="createConfig">
           <el-icon><Plus /></el-icon>
-          创建配置
+          {{ $t('configManager.createConfig') }}
         </el-button>
       </el-empty>
     </el-card>
