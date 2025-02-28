@@ -4,8 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Plus, CaretRight, Document, DocumentCopy, Upload } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { configApi, taskApi } from '@/services/api';
-import { useLoading } from '@/hooks/useLoading';
-import { useNotification } from '@/hooks/useNotification';
+import { useLoading } from '@/composables/useLoading';
+import { useNotification } from '@/composables/useNotification';
 import { ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 

@@ -2,7 +2,7 @@
  * 错误处理工具
  */
 
-import { useNotification } from '@/hooks/useNotification';
+import { useNotification } from '@/composables/useNotification';
 
 /**
  * 格式化错误消息

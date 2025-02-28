@@ -69,7 +69,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { ElMessage } from 'element-plus'
 
 // 3. 本地组件和模块导入
-import { useLoading, useNotification } from '@/hooks'
+import { useLoading, useNotification } from '@/composables'
 import { configApi } from '@/services'
 import BaseTable from '@/components/common/BaseTable.vue'
 

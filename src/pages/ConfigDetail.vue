@@ -69,8 +69,8 @@ import TableConfig from '@/components/config/TableConfig.vue';
 import { useRouter } from 'vue-router';
 import type { Config } from '@/types';
 import { configApi, taskApi } from '@/services/api';
-import { useLoading } from '@/hooks/useLoading';
-import { useNotification } from '@/hooks/useNotification';
+import { useLoading } from '@/composables/useLoading';
+import { useNotification } from '@/composables/useNotification';
 import { formatError } from '@/utils/error';
 import { useI18n } from 'vue-i18n';
 
