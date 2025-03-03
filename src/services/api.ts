@@ -4,7 +4,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { DatabaseConfig, Config, TaskStatus } from '@/types';
+import { DatabaseConfig, Config, TaskStatus, TableConfig } from '@/types';
 
 /**
  * 配置相关API
@@ -60,7 +60,17 @@ export const configApi = {
    */
   async export(name: string, filePath: string): Promise<void> {
     await invoke('export_config', { name, filePath });
-  }
+  },
+
+  /**
+   * 合并表配置
+   * @param databaseConfig 数据库配置
+   * @param tableConfigs 表配置数组
+   * @returns 合并后的表配置数组
+   */
+  async mergeTableConfig(databaseConfig: DatabaseConfig, tableConfigs: TableConfig[]): Promise<TableConfig[]> {
+    return await invoke<TableConfig[]>('merge_table_config', { databaseConfig, tableConfigs });
+  },
 };
 
 /**
@@ -101,24 +111,13 @@ export const databaseApi = {
   // 测试数据库连接
   testConnection: async (config: DatabaseConfig) => {
     try {
-      
       console.log('发送测试连接请求:', config);
-      
       return await invoke<string>('test_connection', { config });
     } catch (error) {
       console.error('测试连接失败:', error);
       throw error;
     }
   },
-  
-  // 获取数据库表
-  getTables: (config: DatabaseConfig) => {
-    return invoke<string[]>('get_tables', { config });
-  },
-  
-  // 获取表的列
-  getTableColumns: (config: DatabaseConfig, tableName: string) => {
-    return invoke<string[]>('get_table_columns', { config, tableName });
-  },
+
 };
 

@@ -59,12 +59,11 @@ fn main() {
             commands::save_config,
             commands::delete_config,
             commands::import_config,
+            commands::merge_table_config,
             // commands::export_config, // 暂时注释掉未实现的命令
             
             // 连接相关命令
             commands::test_connection,
-            commands::get_tables,
-            commands::get_table_columns,
             
             // 任务相关命令
             commands::start_copy,

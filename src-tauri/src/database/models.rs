@@ -22,10 +22,16 @@ pub struct DatabaseConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum TableInfoChangeStatus {
+    Added,
+    Removed,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ColumnConfig {
     pub name: String,
     pub mask_rule: Option<MaskRule>,
     pub ignore: bool,
+    pub status: Option<TableInfoChangeStatus>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -35,6 +41,7 @@ pub struct TableConfig {
     pub structure_only: bool,
     pub ignore_foreign_keys: bool,
     pub ignore: bool,
+    pub status: Option<TableInfoChangeStatus>,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]

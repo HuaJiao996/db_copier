@@ -95,7 +95,7 @@ export default {
     updateStructure: 'Update Structure',
     lastUpdated: 'Last Updated',
     refreshColumns: 'Refresh Columns',
-    loadingColumnInfo: 'Loading column information',
+    loadingColumnInfo: 'Loading Column Info',
     default: 'Default',
     new: 'New',
     useHash: 'Use Hash Encryption',
@@ -103,6 +103,14 @@ export default {
     enterReplacement: 'Enter replacement value or pattern',
     columnCount: '{count} Columns',
     ruleCount: '{count} Rules',
+    treeTitle: 'Database Structure',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect All',
+    expandAll: 'Expand All',
+    collapseAll: 'Collapse All',
+    searchPlaceholder: 'Search tables or columns',
+    noData: 'No Data',
+    loading: 'Loading...',
     columns: {
       tableName: 'Table Name',
       columnName: 'Column Name',
@@ -111,8 +119,14 @@ export default {
     rules: {
       none: 'None',
       hash: 'Hash',
-      fixed: 'Fixed Value',
+      fixed: 'Fixed',
       pattern: 'Pattern'
+    },
+    messages: {
+      loadSuccess: 'Table structure loaded successfully',
+      loadFailed: 'Failed to load table structure',
+      updateSuccess: 'Table structure updated successfully',
+      updateFailed: 'Failed to update table structure'
     }
   },
   databaseConfig: {

@@ -103,6 +103,14 @@ export default {
     enterReplacement: '请输入替换值或模式',
     columnCount: '{count} 列',
     ruleCount: '{count} 规则',
+    treeTitle: '数据库表结构',
+    selectAll: '全选',
+    deselectAll: '取消全选',
+    expandAll: '展开全部',
+    collapseAll: '收起全部',
+    searchPlaceholder: '搜索表或列',
+    noData: '暂无数据',
+    loading: '加载中...',
     columns: {
       tableName: '表名',
       columnName: '列名',
@@ -113,6 +121,12 @@ export default {
       hash: '哈希',
       fixed: '固定值',
       pattern: '模式'
+    },
+    messages: {
+      loadSuccess: '加载表结构成功',
+      loadFailed: '加载表结构失败',
+      updateSuccess: '更新表结构成功',
+      updateFailed: '更新表结构失败'
     }
   },
   databaseConfig: {

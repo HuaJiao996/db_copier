@@ -1,12 +1,14 @@
 // 配置相关命令
 
-use crate::database::{Config, DatabaseConfig};
+use crate::database::{ColumnConfig, Config, DatabaseConfig, TableInfoChangeStatus};
+use crate::db::{DbClient, TableConfig};
 use crate::services::Storage;
 use crate::services::commands::types::ConfigSummary;
 use std::sync::Arc;
 use tauri::State;
-use log::{info, error};
+use log::{info, error, debug};
 use std::fs;
+use std::collections::{HashMap, HashSet};
 
 /// 保存配置
 #[tauri::command]
@@ -87,6 +89,138 @@ pub async fn import_config(
     }
 }
 
+/// 合并列配置
+async fn merge_columns(
+    client: &DbClient,
+    table_name: &str,
+    existing_columns: &[ColumnConfig],
+) -> Result<Vec<ColumnConfig>, String> {
+    debug!("Merging columns for table: {}", table_name);
+    
+    // 获取数据库中的列并转换为 HashSet
+    let current_columns: HashSet<_> = client.get_table_columns(table_name)
+        .await
+        .map_err(|e| {
+            error!("Failed to get columns for table {}: {}", table_name, e);
+            e.to_string()
+        })?
+        .into_iter()
+        .collect();
+    
+    // 创建现有列的映射，用于快速查找
+    let existing_columns_map: HashMap<_, _> = existing_columns
+        .iter()
+        .map(|c| (&c.name, c))
+        .collect();
+    
+    let mut merged_columns = Vec::new();
+    
+    // 处理当前存在的列
+    for column_name in &current_columns {
+        if let Some(&existing) = existing_columns_map.get(column_name) {
+            debug!("Keeping existing column configuration: {}", column_name);
+            let mut column_config = existing.clone();
+            column_config.status = None;
+            merged_columns.push(column_config);
+        } else {
+            debug!("Adding new column: {}", column_name);
+            merged_columns.push(ColumnConfig {
+                name: column_name.clone(),
+                mask_rule: None,
+                ignore: false,
+                status: Some(TableInfoChangeStatus::Added),
+            });
+        }
+    }
+    
+    // 处理已删除的列
+    for column in existing_columns {
+        if !current_columns.contains(&column.name) {
+            debug!("Marking column as removed: {}", column.name);
+            let mut removed_column = column.clone();
+            removed_column.status = Some(TableInfoChangeStatus::Removed);
+            merged_columns.push(removed_column);
+        }
+    }
+    
+    Ok(merged_columns)
+}
+
+/// 合并表配置
+#[tauri::command]
+pub async fn merge_table_config(
+    database_config: DatabaseConfig,
+    table_configs: Vec<TableConfig>,
+) -> Result<Vec<TableConfig>, String> {
+    info!("Starting table configuration merge");
+    
+    // 创建数据库客户端
+    let client = DbClient::new(&database_config)
+        .await
+        .map_err(|e| {
+            error!("Failed to create database client: {}", e);
+            e.to_string()
+        })?;
+    
+    // 获取当前数据库中的表
+    let current_tables = client.get_tables()
+        .await
+        .map_err(|e| {
+            error!("Failed to get table list: {}", e);
+            e.to_string()
+        })?;
+    
+    // 创建现有表配置的映射，用于快速查找
+    let table_configs_map: HashMap<_, _> = table_configs
+        .iter()
+        .map(|t| (&t.name, t))
+        .collect();
+    
+    let mut merged_tables = Vec::new();
+    
+    // 处理当前存在的表
+    for table_name in &current_tables {
+        debug!("Processing table: {}", table_name);
+        
+        let table_config = if let Some(&existing) = table_configs_map.get(table_name) {
+            debug!("Found existing configuration for table: {}", table_name);
+            let mut table_config = existing.clone();
+            table_config.status = None;
+            table_config
+        } else {
+            debug!("Creating new configuration for table: {}", table_name);
+            TableConfig {
+                name: table_name.clone(),
+                columns: Vec::new(),
+                structure_only: false,
+                ignore_foreign_keys: false,
+                ignore: true,
+                status: Some(TableInfoChangeStatus::Added),
+            }
+        };
+        
+        // 合并列配置
+        let merged_columns = merge_columns(&client, table_name, &table_config.columns).await?;
+        
+        let mut merged_table = table_config;
+        merged_table.columns = merged_columns;
+        merged_tables.push(merged_table);
+    }
+    
+    // 处理已删除的表
+    for table_config in table_configs.iter() {
+        if !current_tables.contains(&table_config.name) {
+            debug!("Marking table as removed: {}", table_config.name);
+            let mut removed_table = table_config.clone();
+            removed_table.status = Some(TableInfoChangeStatus::Removed);
+            merged_tables.push(removed_table);
+        }
+    }
+    
+    info!("Table configuration merge completed. Total tables: {}", merged_tables.len());
+    Ok(merged_tables)
+}
+
 /// 获取配置摘要
 #[tauri::command]
 pub fn get_config_summary(config: Config) -> Result<ConfigSummary, String> {
@@ -124,4 +258,4 @@ pub fn get_config_summary(config: Config) -> Result<ConfigSummary, String> {
     );
 
     Ok(summary)
-} 
+}
