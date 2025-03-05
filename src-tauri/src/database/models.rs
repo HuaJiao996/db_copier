@@ -30,7 +30,7 @@ pub enum TableInfoChangeStatus {
 pub struct ColumnConfig {
     pub name: String,
     pub mask_rule: Option<MaskRule>,
-    pub ignore: bool,
+    pub selected: bool,
     pub status: Option<TableInfoChangeStatus>,
 }
 
@@ -40,7 +40,7 @@ pub struct TableConfig {
     pub columns: Vec<ColumnConfig>,
     pub structure_only: bool,
     pub ignore_foreign_keys: bool,
-    pub ignore: bool,
+    pub selected: bool,
     pub status: Option<TableInfoChangeStatus>,
 }
 

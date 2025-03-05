@@ -127,7 +127,7 @@ async fn merge_columns(
             merged_columns.push(ColumnConfig {
                 name: column_name.clone(),
                 mask_rule: None,
-                ignore: false,
+                selected: false,
                 status: Some(TableInfoChangeStatus::Added),
             });
         }
@@ -194,7 +194,7 @@ pub async fn merge_table_config(
                 columns: Vec::new(),
                 structure_only: false,
                 ignore_foreign_keys: false,
-                ignore: true,
+                selected: false,
                 status: Some(TableInfoChangeStatus::Added),
             }
         };

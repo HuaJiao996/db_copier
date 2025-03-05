@@ -30,7 +30,7 @@ export interface MaskRule {
 export interface ColumnConfig {
   name: string;
   mask_rule?: MaskRule;
-  ignore: boolean;
+  selected: boolean;
   status?: TableInfoChangeStatus;
 }
 
@@ -40,7 +40,7 @@ export interface TableConfig {
   columns: ColumnConfig[];
   structure_only: boolean;
   ignore_foreign_keys: boolean;
-  ignore: boolean;
+  selected: boolean;
   status?: TableInfoChangeStatus;
 }
 
