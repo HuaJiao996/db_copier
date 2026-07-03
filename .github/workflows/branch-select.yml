@@ -1,0 +1,101 @@
+name: Branch Select Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '要运行的分支，留空则自动选择（将从仓库获取分支列表）'
+        required: false
+        default: ''
+      environment:
+        description: '运行环境'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+        default: development
+      run_tests:
+        description: '是否运行测试'
+        required: false
+        type: boolean
+        default: 'true'
+
+jobs:
+  validate-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch branches from repository
+        id: list_branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching branches from repo: $GITHUB_REPOSITORY"
+          branches=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/${GITHUB_REPOSITORY}/branches" | python3 -c "import sys, json
+import sys, json
+data=json.load(sys.stdin)
+print(','.join([b.get('name','') for b in data]))" || true)
+          if [[ -z "$branches" ]]; then
+            echo "branches=" >> $GITHUB_OUTPUT
+            echo "Found no branches"
+          else
+            echo "branches=$branches" >> $GITHUB_OUTPUT
+            echo "Available branches: $branches"
+          fi
+
+      - name: Determine and validate selected branch
+        id: prepare
+        shell: bash
+        run: |
+          INPUT_BRANCH="${{ github.event.inputs.branch }}"
+          BRANCHES="${{ steps.list_branches.outputs.branches }}"
+          if [[ -z "$BRANCHES" ]]; then
+            echo "No branches found in repository."
+            exit 1
+          fi
+          IFS=',' read -ra arr <<< "$BRANCHES"
+          if [[ -n "$INPUT_BRANCH" ]]; then
+            ok=0
+            for b in "${arr[@]}"; do
+              if [[ "$b" == "$INPUT_BRANCH" ]]; then ok=1; break; fi
+            done
+            if [[ "$ok" -ne 1 ]]; then
+              echo "Invalid branch: $INPUT_BRANCH"
+              exit 1
+            fi
+            echo "selected_branch=$INPUT_BRANCH" >> $GITHUB_OUTPUT
+            echo "Using provided branch: $INPUT_BRANCH"
+          else
+            preferred=("main" "develop" "release" "master")
+            sel=""
+            for p in "${preferred[@]}"; do
+              for b in "${arr[@]}"; do
+                if [[ "$b" == "$p" ]]; then sel=$b; break 2; fi
+              done
+            done
+            if [[ -z "$sel" ]]; then
+              sel="${arr[0]}"
+            fi
+            echo "Auto-selected branch: $sel"
+            echo "selected_branch=$sel" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.prepare.outputs.selected_branch }}
+
+      - name: Show current branch and inputs
+        run: |
+          echo "Checked out branch: $(git rev-parse --abbrev-ref HEAD)"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Run tests: ${{ github.event.inputs.run_tests }}"
+
+      - name: Run tests
+        if: ${{ github.event.inputs.run_tests == 'true' }}
+        run: |
+          echo "Running tests... (示例)"
+          # 在这里替换为实际测试命令
+          echo "Tests finished."
+
